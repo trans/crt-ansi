@@ -19,6 +19,7 @@ module CRT::Ansi
 
       while reader.has_next?
         char = reader.next_char
+        break if char == '\0'
         ord = char.ord
 
         join_cluster = false
