@@ -11,11 +11,13 @@ module CRT::Ansi
 
     @fill : Style | StyleChar | Nil = nil
 
-    @text : String? = nil
+    @text_content : String | StyledText | Nil = nil
     @text_style : Style = Style.default
     @text_align : Align = Align::Left
-    @text_wrap : Bool = false
+    @text_valign : VAlign = VAlign::Top
+    @text_wrap : Wrap = Wrap::None
     @text_pad : Int32 = 0
+    @text_ellipsis : String? = nil
 
     @shadow : Bool = false
     @shadow_style : Style = Style.new(bg: Color.indexed(0))
@@ -34,16 +36,20 @@ module CRT::Ansi
       self
     end
 
-    def text(content : String, *,
+    def text(content : String | StyledText, *,
              style : Style = Style.default,
              align : Align = Align::Left,
-             wrap : Bool = false,
-             pad : Int32 = 0) : self
-      @text = content
+             valign : VAlign = VAlign::Top,
+             wrap : Wrap = Wrap::None,
+             pad : Int32 = 0,
+             ellipsis : String? = nil) : self
+      @text_content = content
       @text_style = style
       @text_align = align
+      @text_valign = valign
       @text_wrap = wrap
       @text_pad = pad
+      @text_ellipsis = ellipsis
       self
     end
 
@@ -57,7 +63,7 @@ module CRT::Ansi
       draw_shadow if @shadow
       draw_fill if @fill
       draw_border if @border
-      draw_text if @text
+      draw_text if @text_content
     end
 
     # --- Private drawing methods ---
@@ -92,7 +98,7 @@ module CRT::Ansi
     end
 
     private def draw_text : Nil
-      content = @text
+      content = @text_content
       return unless content
 
       inset = @border ? 1 : 0
@@ -103,114 +109,352 @@ module CRT::Ansi
       ih = @v - inset * 2
       return if iw <= 0 || ih <= 0
 
-      lines = @text_wrap ? word_wrap(content, iw) : [content]
+      # Convert to styled spans if plain string.
+      styled = case content
+               in String     then StyledText.new.add(content, @text_style)
+               in StyledText then content
+               in Nil        then return
+               end
 
-      lines.each_with_index do |line, row|
-        break if row >= ih
-        write_aligned(ix, iy + row, line, iw)
+      # Split into lines based on wrap mode.
+      lines = layout_lines(styled, iw)
+
+      # Apply vertical alignment / clipping.
+      visible = select_visible_lines(lines, ih)
+
+      visible.each_with_index do |line, row|
+        write_aligned_spans(ix, iy + row, line, iw)
       end
     end
 
-    private def write_aligned(x : Int32, y : Int32, line : String, width : Int32) : Nil
-      # Truncate if needed
-      display_len = 0
-      truncated = String::Builder.new
-      Graphemes.each(line) do |grapheme|
-        gw = DisplayWidth.of(grapheme)
-        break if display_len + gw > width
-        truncated << grapheme
-        display_len += gw
-      end
-      text = truncated.to_s
+    # A single laid-out line: array of spans with their measured total width.
+    private record LayoutLine, spans : Array(StyledText::Span), width : Int32
 
-      case @text_align
-      in .left?
-        @render.write(x, y, text, @text_style)
-      in .center?
-        offset = (width - display_len) // 2
-        @render.write(x + offset, y, text, @text_style)
-      in .right?
-        offset = width - display_len
-        @render.write(x + offset, y, text, @text_style)
-      end
-    end
+    # Split styled text into layout lines based on wrap mode.
+    private def layout_lines(text : StyledText, width : Int32) : Array(LayoutLine)
+      # First split on explicit newlines into segments.
+      segments = split_on_newlines(text)
 
-    private def word_wrap(text : String, width : Int32) : Array(String)
-      lines = [] of String
-      text.split('\n').each do |paragraph|
-        wrap_paragraph(paragraph, width, lines)
+      lines = [] of LayoutLine
+      segments.each do |segment|
+        case @text_wrap
+        in .none?
+          lines << measure_line(segment)
+        in .word?
+          wrap_word(segment, width, lines)
+        in .char?
+          wrap_char(segment, width, lines)
+        end
       end
       lines
     end
 
-    private def wrap_paragraph(paragraph : String, width : Int32, lines : Array(String)) : Nil
-      if paragraph.empty?
-        lines << ""
+    # Split styled text on \n boundaries, producing an array of StyledText segments.
+    private def split_on_newlines(text : StyledText) : Array(StyledText)
+      segments = [StyledText.new]
+
+      text.spans.each do |span|
+        parts = span.text.split('\n', remove_empty: false)
+        parts.each_with_index do |part, i|
+          segments << StyledText.new if i > 0
+          segments.last.add(part, span.style) unless part.empty?
+        end
+      end
+
+      segments
+    end
+
+    private def measure_line(text : StyledText) : LayoutLine
+      w = 0
+      text.each_grapheme { |_, gw, _| w += gw }
+      LayoutLine.new(text.spans, w)
+    end
+
+    # Word wrap a single paragraph (no newlines) into lines.
+    private def wrap_word(text : StyledText, width : Int32, lines : Array(LayoutLine)) : Nil
+      plain = text.to_s
+      if plain.empty?
+        lines << LayoutLine.new([] of StyledText::Span, 0)
         return
       end
 
-      words = paragraph.split(/\s+/)
-      line = String::Builder.new
+      # Build a flat list of graphemes with their styles for re-assembly.
+      graphemes = [] of {String, Int32, Style}
+      text.each_grapheme { |g, gw, s| graphemes << {g, gw, s} }
+
+      # Word-wrap on the plain text, then map back to styled spans.
+      words = split_into_words(graphemes)
+      line_words = [] of Array({String, Int32, Style})
       line_len = 0
 
       words.each do |word|
-        word_len = DisplayWidth.width(word)
+        word_len = word.sum { |_, gw, _| gw }
 
         if word_len > width
-          # Word too long for a line — break it character by character
-          flush_line(line, line_len, lines) if line_len > 0
-          break_long_word(word, width, lines)
-          line = String::Builder.new
+          flush_word_line(line_words, line_len, lines) if line_len > 0
+          break_long_graphemes(word, width, lines)
+          line_words = [] of Array({String, Int32, Style})
           line_len = 0
           next
         end
 
         if line_len == 0
-          line << word
+          line_words << word
           line_len = word_len
         elsif line_len + 1 + word_len <= width
-          line << ' ' << word
+          # Add space between words — use style of first grapheme of current word
+          space_style = word.first[2]
+          line_words << [{ " ", 1, space_style }]
+          line_words << word
           line_len += 1 + word_len
         else
-          lines << line.to_s
-          line = String::Builder.new
-          line << word
+          flush_word_line(line_words, line_len, lines)
+          line_words = [word]
           line_len = word_len
         end
       end
 
-      lines << line.to_s if line_len > 0
+      flush_word_line(line_words, line_len, lines) if line_len > 0
     end
 
-    private def flush_line(builder : String::Builder, len : Int32, lines : Array(String)) : Nil
-      lines << builder.to_s if len > 0
-    end
+    # Split graphemes into words (splitting on whitespace graphemes).
+    private def split_into_words(graphemes : Array({String, Int32, Style})) : Array(Array({String, Int32, Style}))
+      words = [] of Array({String, Int32, Style})
+      current = [] of {String, Int32, Style}
 
-    private def break_long_word(word : String, width : Int32, lines : Array(String)) : Nil
-      line = String::Builder.new
-      line_len = 0
-
-      Graphemes.each(word) do |grapheme|
-        gw = DisplayWidth.of(grapheme)
-        if line_len + gw > width && line_len > 0
-          lines << line.to_s
-          line = String::Builder.new
-          line_len = 0
+      graphemes.each do |g, gw, s|
+        if g =~ /\s/
+          words << current unless current.empty?
+          current = [] of {String, Int32, Style}
+        else
+          current << {g, gw, s}
         end
-        line << grapheme
-        line_len += gw
       end
 
-      lines << line.to_s if line_len > 0
+      words << current unless current.empty?
+      words
+    end
+
+    private def flush_word_line(word_groups : Array(Array({String, Int32, Style})), len : Int32, lines : Array(LayoutLine)) : Nil
+      return if len == 0
+      spans = graphemes_to_spans(word_groups.flatten)
+      lines << LayoutLine.new(spans, len)
+    end
+
+    private def break_long_graphemes(graphemes : Array({String, Int32, Style}), width : Int32, lines : Array(LayoutLine)) : Nil
+      current = [] of {String, Int32, Style}
+      current_len = 0
+
+      graphemes.each do |g, gw, s|
+        if current_len + gw > width && current_len > 0
+          spans = graphemes_to_spans(current)
+          lines << LayoutLine.new(spans, current_len)
+          current = [] of {String, Int32, Style}
+          current_len = 0
+        end
+        current << {g, gw, s}
+        current_len += gw
+      end
+
+      if current_len > 0
+        spans = graphemes_to_spans(current)
+        lines << LayoutLine.new(spans, current_len)
+      end
+    end
+
+    # Character wrap a single paragraph into lines.
+    private def wrap_char(text : StyledText, width : Int32, lines : Array(LayoutLine)) : Nil
+      plain = text.to_s
+      if plain.empty?
+        lines << LayoutLine.new([] of StyledText::Span, 0)
+        return
+      end
+
+      current = [] of {String, Int32, Style}
+      current_len = 0
+
+      text.each_grapheme do |g, gw, s|
+        if current_len + gw > width && current_len > 0
+          spans = graphemes_to_spans(current)
+          lines << LayoutLine.new(spans, current_len)
+          current = [] of {String, Int32, Style}
+          current_len = 0
+        end
+        current << {g, gw, s}
+        current_len += gw
+      end
+
+      if current_len > 0
+        spans = graphemes_to_spans(current)
+        lines << LayoutLine.new(spans, current_len)
+      end
+    end
+
+    # Convert a flat list of graphemes back into coalesced spans.
+    private def graphemes_to_spans(graphemes : Array({String, Int32, Style})) : Array(StyledText::Span)
+      return [] of StyledText::Span if graphemes.empty?
+
+      spans = [] of StyledText::Span
+      current_text = String::Builder.new
+      current_style = graphemes.first[2]
+
+      graphemes.each do |g, _, s|
+        if s == current_style
+          current_text << g
+        else
+          spans << StyledText::Span.new(current_text.to_s, current_style)
+          current_text = String::Builder.new
+          current_text << g
+          current_style = s
+        end
+      end
+
+      text = current_text.to_s
+      spans << StyledText::Span.new(text, current_style) unless text.empty?
+      spans
+    end
+
+    # Select which lines are visible based on vertical alignment and available height.
+    private def select_visible_lines(lines : Array(LayoutLine), max_lines : Int32) : Array(LayoutLine)
+      return lines if lines.size <= max_lines
+
+      case @text_valign
+      in .top?
+        lines[0, max_lines]
+      in .bottom?
+        lines[lines.size - max_lines, max_lines]
+      in .middle?
+        skip = (lines.size - max_lines) // 2
+        lines[skip, max_lines]
+      end
+    end
+
+    # Write a line of styled spans with horizontal alignment and clipping.
+    private def write_aligned_spans(x : Int32, y : Int32, line : LayoutLine, width : Int32) : Nil
+      spans = line.spans
+      line_width = line.width
+
+      if line_width <= width
+        # Fits — just align within the space.
+        offset = case @text_align
+                 in .left?   then 0
+                 in .center? then (width - line_width) // 2
+                 in .right?  then width - line_width
+                 end
+        write_spans(x + offset, y, spans)
+      else
+        # Overflows — clip based on alignment.
+        clip_and_write_spans(x, y, spans, line_width, width)
+      end
+    end
+
+    # Write spans directly to the renderer (no clipping needed).
+    private def write_spans(x : Int32, y : Int32, spans : Array(StyledText::Span)) : Nil
+      cx = x
+      spans.each do |span|
+        cx = @render.write(cx, y, span.text, span.style)
+      end
+    end
+
+    # Clip overflowing spans based on alignment and optional ellipsis.
+    private def clip_and_write_spans(x : Int32, y : Int32, spans : Array(StyledText::Span),
+                                     line_width : Int32, width : Int32) : Nil
+      ellipsis = @text_ellipsis
+      ellipsis_width = ellipsis ? DisplayWidth.width(ellipsis) : 0
+
+      case @text_align
+      in .left?
+        clip_from_right(x, y, spans, width, ellipsis, ellipsis_width)
+      in .right?
+        clip_from_left(x, y, spans, line_width, width, ellipsis, ellipsis_width)
+      in .center?
+        clip_center(x, y, spans, line_width, width)
+      end
+    end
+
+    # Left-aligned: keep beginning, clip end.
+    private def clip_from_right(x : Int32, y : Int32, spans : Array(StyledText::Span),
+                                width : Int32, ellipsis : String?, ellipsis_width : Int32) : Nil
+      avail = ellipsis ? width - ellipsis_width : width
+      cx = x
+      used = 0
+      last_style = Style.default
+
+      spans.each do |span|
+        Graphemes.each(span.text) do |grapheme|
+          gw = DisplayWidth.of(grapheme)
+          break if used + gw > avail
+          @render.put(cx, y, grapheme, span.style)
+          cx += gw
+          used += gw
+          last_style = span.style
+        end
+        break if used >= avail
+      end
+
+      if ellipsis && used < width
+        @render.write(cx, y, ellipsis, last_style)
+      end
+    end
+
+    # Right-aligned: keep end, clip beginning.
+    private def clip_from_left(x : Int32, y : Int32, spans : Array(StyledText::Span),
+                               line_width : Int32, width : Int32, ellipsis : String?,
+                               ellipsis_width : Int32) : Nil
+      avail = ellipsis ? width - ellipsis_width : width
+      skip = line_width - avail
+
+      # Write ellipsis at the start.
+      cx = x
+      if ellipsis
+        first_style = spans.first?.try(&.style) || Style.default
+        cx += @render.write(cx, y, ellipsis, first_style)
+      end
+
+      # Skip `skip` display-width units, then write the rest.
+      skipped = 0
+      spans.each do |span|
+        Graphemes.each(span.text) do |grapheme|
+          gw = DisplayWidth.of(grapheme)
+          if skipped < skip
+            skipped += gw
+            next
+          end
+          break if cx - x >= width
+          @render.put(cx, y, grapheme, span.style)
+          cx += gw
+        end
+      end
+    end
+
+    # Center-aligned: clip both sides equally.
+    private def clip_center(x : Int32, y : Int32, spans : Array(StyledText::Span),
+                            line_width : Int32, width : Int32) : Nil
+      skip = (line_width - width) // 2
+
+      cx = x
+      skipped = 0
+      written = 0
+      spans.each do |span|
+        Graphemes.each(span.text) do |grapheme|
+          gw = DisplayWidth.of(grapheme)
+          if skipped < skip
+            skipped += gw
+            next
+          end
+          break if written + gw > width
+          @render.put(cx, y, grapheme, span.style)
+          cx += gw
+          written += gw
+        end
+      end
     end
 
     private def draw_shadow : Nil
       # Shadow: 1 cell right and 1 cell below the box
-      # Right edge shadow (1 column wide, full height minus top row)
       (@v - 1).times do |j|
         @render.put(@x + @h, @y + 1 + j, " ", @shadow_style)
       end
-      # Bottom edge shadow (full width minus left column, plus corner)
       @h.times do |i|
         @render.put(@x + 1 + i, @y + @v, " ", @shadow_style)
       end

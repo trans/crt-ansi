@@ -29,12 +29,9 @@ describe CRT::Ansi::Panel do
       bg = CRT::Ansi::Style.new(bg: CRT::Ansi::Color.indexed(1))
       r.panel(0, 0, h: 5, v: 3).border.fill(bg).draw
 
-      # Interior cells filled
       r.cell(1, 1).grapheme.should eq(" ")
       r.cell(1, 1).style.should eq(bg)
       r.cell(3, 1).style.should eq(bg)
-
-      # Border cells not affected by fill style
       r.cell(0, 0).grapheme.should eq("┌")
     end
 
@@ -90,7 +87,6 @@ describe CRT::Ansi::Panel do
       # Interior width = 6, "Hello " fits, "W" would be 7th
       r.cell(1, 1).grapheme.should eq("H")
       r.cell(6, 1).grapheme.should eq(" ")
-      # 7th char should not overflow past border
       r.cell(7, 1).grapheme.should_not eq("W")
     end
 
@@ -103,10 +99,34 @@ describe CRT::Ansi::Panel do
     end
   end
 
-  describe "#text with wrap" do
+  describe "Wrap::None with newlines" do
+    it "splits on explicit newlines" do
+      r = renderer(20, 10)
+      r.panel(0, 0, h: 12, v: 5).border.text("line one\nline two").draw
+
+      r.cell(1, 1).grapheme.should eq("l")
+      r.cell(6, 1).grapheme.should eq("o")
+      r.cell(1, 2).grapheme.should eq("l")
+      r.cell(6, 2).grapheme.should eq("t")
+    end
+
+    it "truncates long lines without wrapping" do
+      r = renderer(20, 10)
+      r.panel(0, 0, h: 7, v: 4).border.text("abcdefghij\nxy").draw
+
+      # Interior width = 5, "abcde" visible, "fghij" clipped
+      r.cell(1, 1).grapheme.should eq("a")
+      r.cell(5, 1).grapheme.should eq("e")
+      # Second line
+      r.cell(1, 2).grapheme.should eq("x")
+      r.cell(2, 2).grapheme.should eq("y")
+    end
+  end
+
+  describe "Wrap::Word" do
     it "wraps text at word boundaries" do
       r = renderer(20, 10)
-      r.panel(0, 0, h: 12, v: 6).border.text("one two three four five", wrap: true).draw
+      r.panel(0, 0, h: 12, v: 6).border.text("one two three four five", wrap: CRT::Ansi::Wrap::Word).draw
 
       # Interior width = 10
       # Line 1: "one two"
@@ -119,19 +139,38 @@ describe CRT::Ansi::Panel do
 
     it "preserves explicit newlines" do
       r = renderer(20, 10)
-      r.panel(0, 0, h: 12, v: 5).border.text("line one\nline two", wrap: true).draw
+      r.panel(0, 0, h: 12, v: 5).border.text("line one\nline two", wrap: CRT::Ansi::Wrap::Word).draw
 
-      # "line one" at row 1 (border inset), starting at x=1
       r.cell(1, 1).grapheme.should eq("l")
       r.cell(6, 1).grapheme.should eq("o")
-      # "line two" at row 2
       r.cell(1, 2).grapheme.should eq("l")
       r.cell(6, 2).grapheme.should eq("t")
     end
 
     it "breaks long words" do
       r = renderer(20, 10)
-      r.panel(0, 0, h: 7, v: 5).border.text("abcdefghij", wrap: true).draw
+      r.panel(0, 0, h: 7, v: 5).border.text("abcdefghij", wrap: CRT::Ansi::Wrap::Word).draw
+
+      # Interior width = 5
+      r.cell(1, 1).grapheme.should eq("a")
+      r.cell(5, 1).grapheme.should eq("e")
+      r.cell(1, 2).grapheme.should eq("f")
+    end
+
+    it "clips text that exceeds height" do
+      r = renderer(20, 10)
+      r.panel(0, 0, h: 8, v: 4).border.text("a b c d e f g h", wrap: CRT::Ansi::Wrap::Word).draw
+
+      # Interior height = 2
+      r.cell(1, 1).grapheme.should_not eq("")
+      r.cell(1, 2).grapheme.should_not eq("")
+    end
+  end
+
+  describe "Wrap::Char" do
+    it "wraps at exact character width" do
+      r = renderer(20, 10)
+      r.panel(0, 0, h: 7, v: 5).border.text("abcdefghij", wrap: CRT::Ansi::Wrap::Char).draw
 
       # Interior width = 5
       # Line 1: "abcde"
@@ -139,15 +178,199 @@ describe CRT::Ansi::Panel do
       r.cell(5, 1).grapheme.should eq("e")
       # Line 2: "fghij"
       r.cell(1, 2).grapheme.should eq("f")
+      r.cell(5, 2).grapheme.should eq("j")
     end
 
-    it "clips text that exceeds height" do
+    it "does not break at word boundaries" do
       r = renderer(20, 10)
-      r.panel(0, 0, h: 8, v: 4).border.text("a b c d e f g h", wrap: true).draw
+      r.panel(0, 0, h: 7, v: 5).border.text("ab cd ef", wrap: CRT::Ansi::Wrap::Char).draw
 
-      # Interior height = 2, so only 2 lines visible
-      r.cell(1, 1).grapheme.should_not eq("")
-      r.cell(1, 2).grapheme.should_not eq("")
+      # Interior width = 5
+      # Line 1: "ab cd" → a,b, ,c,d
+      r.cell(1, 1).grapheme.should eq("a")
+      r.cell(2, 1).grapheme.should eq("b")
+      r.cell(3, 1).grapheme.should eq(" ")
+      r.cell(4, 1).grapheme.should eq("c")
+      r.cell(5, 1).grapheme.should eq("d")
+      # Line 2: " ef" → space,e,f
+      r.cell(1, 2).grapheme.should eq(" ")
+      r.cell(2, 2).grapheme.should eq("e")
+      r.cell(3, 2).grapheme.should eq("f")
+    end
+
+    it "preserves explicit newlines" do
+      r = renderer(20, 10)
+      r.panel(0, 0, h: 7, v: 5).border.text("abc\ndef", wrap: CRT::Ansi::Wrap::Char).draw
+
+      r.cell(1, 1).grapheme.should eq("a")
+      r.cell(3, 1).grapheme.should eq("c")
+      r.cell(1, 2).grapheme.should eq("d")
+      r.cell(3, 2).grapheme.should eq("f")
+    end
+  end
+
+  describe "VAlign" do
+    it "top-aligns by default (clips bottom)" do
+      r = renderer(20, 10)
+      r.panel(0, 0, h: 10, v: 4).border.text("a\nb\nc\nd\ne").draw
+
+      # Interior height = 2, top-aligned: "a" and "b" visible
+      r.cell(1, 1).grapheme.should eq("a")
+      r.cell(1, 2).grapheme.should eq("b")
+    end
+
+    it "bottom-aligns (clips top)" do
+      r = renderer(20, 10)
+      r.panel(0, 0, h: 10, v: 4).border
+        .text("a\nb\nc\nd\ne", valign: CRT::Ansi::VAlign::Bottom).draw
+
+      # Interior height = 2, bottom-aligned: "d" and "e" visible
+      r.cell(1, 1).grapheme.should eq("d")
+      r.cell(1, 2).grapheme.should eq("e")
+    end
+
+    it "middle-aligns (clips both)" do
+      r = renderer(20, 10)
+      r.panel(0, 0, h: 10, v: 4).border
+        .text("a\nb\nc\nd\ne", valign: CRT::Ansi::VAlign::Middle).draw
+
+      # 5 lines, 2 visible, skip = (5-2)//2 = 1: "b" and "c" visible
+      r.cell(1, 1).grapheme.should eq("b")
+      r.cell(1, 2).grapheme.should eq("c")
+    end
+
+    it "does not clip when content fits" do
+      r = renderer(20, 10)
+      r.panel(0, 0, h: 10, v: 5).border
+        .text("a\nb\nc", valign: CRT::Ansi::VAlign::Middle).draw
+
+      # 3 lines in interior height 3 — no clipping needed
+      r.cell(1, 1).grapheme.should eq("a")
+      r.cell(1, 2).grapheme.should eq("b")
+      r.cell(1, 3).grapheme.should eq("c")
+    end
+  end
+
+  describe "ellipsis" do
+    it "appends ellipsis when left-aligned text overflows" do
+      r = renderer(20, 5)
+      r.panel(0, 0, h: 10, v: 3).border
+        .text("Hello World!", ellipsis: "…").draw
+
+      # Interior width = 8, ellipsis = 1, avail = 7
+      # "Hello W" + "…"
+      r.cell(1, 1).grapheme.should eq("H")
+      r.cell(7, 1).grapheme.should eq("W")
+      r.cell(8, 1).grapheme.should eq("…")
+    end
+
+    it "prepends ellipsis when right-aligned text overflows" do
+      r = renderer(20, 5)
+      r.panel(0, 0, h: 10, v: 3).border
+        .text("Hello World!", align: CRT::Ansi::Align::Right, ellipsis: "…").draw
+
+      # Interior width = 8, ellipsis = 1, avail = 7
+      # "…" + last 7 chars "World!"
+      r.cell(1, 1).grapheme.should eq("…")
+    end
+
+    it "does not add ellipsis when text fits" do
+      r = renderer(20, 5)
+      r.panel(0, 0, h: 10, v: 3).border
+        .text("Hi", ellipsis: "…").draw
+
+      r.cell(1, 1).grapheme.should eq("H")
+      r.cell(2, 1).grapheme.should eq("i")
+      r.cell(3, 1).grapheme.should_not eq("…")
+    end
+  end
+
+  describe "alignment-aware clipping" do
+    it "clips right side for left-aligned overflow" do
+      r = renderer(20, 5)
+      r.panel(0, 0, h: 7, v: 3).border.text("abcdefgh").draw
+
+      # Interior width = 5, shows "abcde"
+      r.cell(1, 1).grapheme.should eq("a")
+      r.cell(5, 1).grapheme.should eq("e")
+    end
+
+    it "clips left side for right-aligned overflow" do
+      r = renderer(20, 5)
+      r.panel(0, 0, h: 7, v: 3).border
+        .text("abcdefgh", align: CRT::Ansi::Align::Right).draw
+
+      # Interior width = 5, right-aligned clips left: shows "defgh"
+      r.cell(1, 1).grapheme.should eq("d")
+      r.cell(5, 1).grapheme.should eq("h")
+    end
+
+    it "clips both sides for center-aligned overflow" do
+      r = renderer(20, 5)
+      r.panel(0, 0, h: 7, v: 3).border
+        .text("abcdefgh", align: CRT::Ansi::Align::Center).draw
+
+      # Interior width = 5, center clips: skip = (8-5)//2 = 1, shows "bcdef"
+      r.cell(1, 1).grapheme.should eq("b")
+      r.cell(5, 1).grapheme.should eq("f")
+    end
+  end
+
+  describe "StyledText" do
+    it "renders styled spans" do
+      r = renderer(20, 5)
+      bold = CRT::Ansi::Style.new(bold: true)
+      red = CRT::Ansi::Style.new(fg: CRT::Ansi::Color.indexed(1))
+      text = CRT::Ansi::StyledText.new
+        .add("He", bold)
+        .add("lo", red)
+
+      r.panel(0, 0, h: 10, v: 3).border.text(text).draw
+
+      r.cell(1, 1).grapheme.should eq("H")
+      r.cell(1, 1).style.should eq(bold)
+      r.cell(2, 1).grapheme.should eq("e")
+      r.cell(2, 1).style.should eq(bold)
+      r.cell(3, 1).grapheme.should eq("l")
+      r.cell(3, 1).style.should eq(red)
+      r.cell(4, 1).grapheme.should eq("o")
+      r.cell(4, 1).style.should eq(red)
+    end
+
+    it "preserves styles through word wrap" do
+      r = renderer(20, 10)
+      bold = CRT::Ansi::Style.new(bold: true)
+      normal = CRT::Ansi::Style.default
+      text = CRT::Ansi::StyledText.new
+        .add("one ", bold)
+        .add("two three", normal)
+
+      r.panel(0, 0, h: 9, v: 5).border.text(text, wrap: CRT::Ansi::Wrap::Word).draw
+
+      # Interior width = 7: "one two" on line 1, "three" on line 2
+      # "one" should be bold
+      r.cell(1, 1).grapheme.should eq("o")
+      r.cell(1, 1).style.should eq(bold)
+      # "two" should be normal
+      r.cell(5, 1).grapheme.should eq("t")
+      r.cell(5, 1).style.should eq(normal)
+      # "three" on next line, normal
+      r.cell(1, 2).grapheme.should eq("t")
+      r.cell(1, 2).style.should eq(normal)
+    end
+
+    it "splits styled text on newlines" do
+      r = renderer(20, 10)
+      bold = CRT::Ansi::Style.new(bold: true)
+      text = CRT::Ansi::StyledText.new
+        .add("a\nb", bold)
+
+      r.panel(0, 0, h: 10, v: 4).border.text(text).draw
+
+      r.cell(1, 1).grapheme.should eq("a")
+      r.cell(1, 1).style.should eq(bold)
+      r.cell(1, 2).grapheme.should eq("b")
+      r.cell(1, 2).style.should eq(bold)
     end
   end
 
@@ -157,10 +380,8 @@ describe CRT::Ansi::Panel do
       r.panel(1, 1, h: 4, v: 3).border.shadow.draw
 
       shadow_style = CRT::Ansi::Style.new(bg: CRT::Ansi::Color.indexed(0))
-      # Right edge shadow
       r.cell(5, 2).style.should eq(shadow_style)
       r.cell(5, 3).style.should eq(shadow_style)
-      # Bottom edge shadow
       r.cell(2, 4).style.should eq(shadow_style)
       r.cell(4, 4).style.should eq(shadow_style)
     end
@@ -176,7 +397,6 @@ describe CRT::Ansi::Panel do
       r2 = renderer
       r2.panel(0, 0, h: 10, v: 4).text("Hi").fill(bg).border.draw
 
-      # Same result
       4.times do |y|
         10.times do |x|
           r1.cell(x, y).should eq(r2.cell(x, y))
@@ -190,7 +410,6 @@ describe CRT::Ansi::Panel do
       r = renderer
       r.panel(0, 0, h: 14, v: 3).border.text("Hi", pad: 2).draw
 
-      # Border inset = 1, pad = 2, so text starts at x=3
       r.cell(3, 1).grapheme.should eq("H")
       r.cell(4, 1).grapheme.should eq("i")
     end
