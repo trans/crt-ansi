@@ -137,7 +137,7 @@ module CRT::Ansi
     end
 
     # Delegate drawing methods to the renderer.
-    delegate :put, :write, :clear, :cell, :box, :panel, :cursor_to, to: @render
+    delegate :put, :write, :clear, :cell, :box, :panel, :blit, :cursor_to, to: @render
 
     private def enter_alt_screen : Nil
       @io << "\e[?1049h"
