@@ -155,6 +155,96 @@ describe CRT::Ansi::Renderer do
     end
   end
 
+  describe "#box" do
+    it "draws a box with corners and edges" do
+      io = IO::Memory.new
+      renderer = CRT::Ansi::Renderer.new(io, 5, 3)
+      renderer.box(0, 0, h: 5, v: 3)
+
+      renderer.cell(0, 0).grapheme.should eq("┌")
+      renderer.cell(4, 0).grapheme.should eq("┐")
+      renderer.cell(0, 2).grapheme.should eq("└")
+      renderer.cell(4, 2).grapheme.should eq("┘")
+      renderer.cell(1, 0).grapheme.should eq("─")
+      renderer.cell(0, 1).grapheme.should eq("│")
+    end
+
+    it "draws a horizontal line when v is 0" do
+      io = IO::Memory.new
+      renderer = CRT::Ansi::Renderer.new(io, 5, 1)
+      renderer.box(0, 0, h: 5)
+
+      5.times { |i| renderer.cell(i, 0).grapheme.should eq("─") }
+    end
+
+    it "draws a vertical line when h is 0" do
+      io = IO::Memory.new
+      renderer = CRT::Ansi::Renderer.new(io, 1, 5)
+      renderer.box(0, 0, v: 5)
+
+      5.times { |j| renderer.cell(0, j).grapheme.should eq("│") }
+    end
+
+    it "fills the interior with spaces when a Style is given" do
+      io = IO::Memory.new
+      renderer = CRT::Ansi::Renderer.new(io, 5, 3)
+      fill_style = CRT::Ansi::Style.new(bg: CRT::Ansi::Color.indexed(1))
+      renderer.box(0, 0, h: 5, v: 3, fill: fill_style)
+
+      renderer.cell(1, 1).grapheme.should eq(" ")
+      renderer.cell(1, 1).style.should eq(fill_style)
+      renderer.cell(2, 1).style.should eq(fill_style)
+      renderer.cell(3, 1).style.should eq(fill_style)
+    end
+
+    it "fills the interior with a custom character" do
+      io = IO::Memory.new
+      renderer = CRT::Ansi::Renderer.new(io, 5, 3)
+      renderer.box(0, 0, h: 5, v: 3, fill: CRT::Ansi::StyleChar.new('·'))
+
+      renderer.cell(1, 1).grapheme.should eq("·")
+      renderer.cell(2, 1).grapheme.should eq("·")
+      renderer.cell(3, 1).grapheme.should eq("·")
+    end
+
+    it "leaves interior untouched without fill" do
+      io = IO::Memory.new
+      renderer = CRT::Ansi::Renderer.new(io, 5, 3)
+      renderer.box(0, 0, h: 5, v: 3)
+
+      # Interior should still be blank (default)
+      renderer.cell(1, 1).blank?.should be_true
+    end
+
+    it "supports different border styles" do
+      io = IO::Memory.new
+      renderer = CRT::Ansi::Renderer.new(io, 4, 3)
+      renderer.box(0, 0, h: 4, v: 3, border: CRT::Ansi::Border::Double)
+
+      renderer.cell(0, 0).grapheme.should eq("╔")
+      renderer.cell(1, 0).grapheme.should eq("═")
+      renderer.cell(0, 1).grapheme.should eq("║")
+    end
+
+    it "supports rounded corners" do
+      io = IO::Memory.new
+      renderer = CRT::Ansi::Renderer.new(io, 4, 3)
+      renderer.box(0, 0, h: 4, v: 3, border: CRT::Ansi::Border::Rounded)
+
+      renderer.cell(0, 0).grapheme.should eq("╭")
+      renderer.cell(3, 0).grapheme.should eq("╮")
+      renderer.cell(0, 2).grapheme.should eq("╰")
+      renderer.cell(3, 2).grapheme.should eq("╯")
+    end
+
+    it "does nothing when both h and v are 0" do
+      io = IO::Memory.new
+      renderer = CRT::Ansi::Renderer.new(io, 3, 3)
+      renderer.box(0, 0, h: 0, v: 0)
+      renderer.cell(0, 0).blank?.should be_true
+    end
+  end
+
   describe "styled rendering" do
     it "emits SGR sequences for styled cells" do
       io = IO::Memory.new

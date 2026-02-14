@@ -35,6 +35,14 @@ module CRT::Ansi
       tables
     end
 
+    # Returns the display width of a string by summing grapheme cluster widths.
+    def width(text : String) : Int32
+      total = 0
+      Graphemes.each(text) { |g| total += of(g) }
+      total
+    end
+
+    # Returns the display width of a single grapheme cluster.
     def of(grapheme : String) : Int32
       return 1 if grapheme.empty?
 

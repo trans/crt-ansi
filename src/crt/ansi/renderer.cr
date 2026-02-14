@@ -30,6 +30,58 @@ module CRT::Ansi
       @back_buffer.cell(x, y)
     end
 
+    # Returns a Panel builder for fluid drawing within a region.
+    def panel(x : Int, y : Int, *, h : Int, v : Int) : Panel
+      Panel.new(self, x.to_i, y.to_i, h: h.to_i, v: v.to_i)
+    end
+
+    # Draw a box, horizontal line, or vertical line.
+    #
+    # - `h > 0` and `v > 0`: bordered box (h wide, v tall, inclusive)
+    # - `h > 0` and `v == 0`: horizontal line of length h
+    # - `h == 0` and `v > 0`: vertical line of length v
+    #
+    # `fill:` fills the interior of a box with the given style.
+    # `border:` selects the line-drawing character set.
+    def box(x : Int, y : Int, *, h : Int = 0, v : Int = 0,
+            style : Style = @back_buffer.default_style,
+            border : Border = Border::Single,
+            fill : Style | StyleChar | Nil = nil) : Nil
+      hz, vt, tl, tr, bl, br = border.chars
+
+      if h > 0 && v > 0
+        # Box
+        put(x, y, tl, style)
+        (h - 2).times { |i| put(x + i + 1, y, hz, style) }
+        put(x + h - 1, y, tr, style)
+
+        fill_char, fill_style = case fill
+                                in Style    then {" ", fill}
+                                in StyleChar then {fill.char, fill.style}
+                                in Nil       then {nil, nil}
+                                end
+
+        (v - 2).times do |j|
+          row = y + j + 1
+          put(x, row, vt, style)
+          if fill_char && fill_style
+            (h - 2).times { |i| put(x + i + 1, row, fill_char, fill_style) }
+          end
+          put(x + h - 1, row, vt, style)
+        end
+
+        put(x, y + v - 1, bl, style)
+        (h - 2).times { |i| put(x + i + 1, y + v - 1, hz, style) }
+        put(x + h - 1, y + v - 1, br, style)
+      elsif h > 0
+        # Horizontal line
+        h.times { |i| put(x + i, y, hz, style) }
+      elsif v > 0
+        # Vertical line
+        v.times { |j| put(x, y + j, vt, style) }
+      end
+    end
+
     def initialize(@io : IO, width : Int, height : Int, *, origin_x : Int = 1, origin_y : Int = 1, context : Context = CRT::Ansi.context)
       @origin_x = origin_x.to_i
       @origin_y = origin_y.to_i
