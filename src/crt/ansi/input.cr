@@ -38,6 +38,18 @@ module CRT::Ansi
       end
     end
 
+    # Return the next event if input is available, nil otherwise.
+    # Never blocks — suitable for frame-rate-based loops.
+    def poll_event : Event?
+      return read_event if @pos < @len
+
+      if @io.is_a?(IO::FileDescriptor)
+        return nil unless wait_for_data(@io.as(IO::FileDescriptor), Time::Span.zero)
+      end
+
+      read_event
+    end
+
     private def parse_escape : Event
       b = peek_byte(timeout: 50.milliseconds)
 

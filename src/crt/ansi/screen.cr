@@ -124,6 +124,11 @@ module CRT::Ansi
       input.read_key
     end
 
+    # Return the next event if input is available, nil otherwise.
+    def poll_event : Event?
+      input.poll_event
+    end
+
     def input : Input
       @input ||= Input.new(STDIN)
     end

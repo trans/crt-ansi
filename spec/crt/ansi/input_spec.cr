@@ -311,6 +311,30 @@ describe CRT::Ansi::Input do
     end
   end
 
+  describe "#poll_event" do
+    it "returns nil on empty input" do
+      input_from("").poll_event.should be_nil
+    end
+
+    it "returns a key when data is available" do
+      event = input_from("a").poll_event
+      event.should be_a(CRT::Ansi::Key)
+      event.as(CRT::Ansi::Key).char.should eq("a")
+    end
+
+    it "returns a mouse event when data is available" do
+      event = input_from("\e[<0;5;3M").poll_event
+      event.should be_a(CRT::Ansi::Mouse)
+    end
+
+    it "reads multiple events without blocking" do
+      input = input_from("ab")
+      input.poll_event.as(CRT::Ansi::Key).char.should eq("a")
+      input.poll_event.as(CRT::Ansi::Key).char.should eq("b")
+      input.poll_event.should be_nil
+    end
+  end
+
   describe "EOF" do
     it "returns nil on empty input" do
       input_from("").read_key.should be_nil
