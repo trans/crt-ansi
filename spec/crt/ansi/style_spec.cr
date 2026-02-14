@@ -74,6 +74,38 @@ describe CRT::Ansi::Style do
     end
   end
 
+  describe "#merge" do
+    it "OR's boolean attributes" do
+      base = CRT::Ansi::Style.new(bold: true)
+      other = CRT::Ansi::Style.new(underline: true)
+      merged = base.merge(other)
+      merged.bold.should be_true
+      merged.underline.should be_true
+    end
+
+    it "overrides non-default colors" do
+      base = CRT::Ansi::Style.new(fg: CRT::Ansi::Color.indexed(1))
+      other = CRT::Ansi::Style.new(fg: CRT::Ansi::Color.indexed(2))
+      merged = base.merge(other)
+      merged.fg.should eq(CRT::Ansi::Color.indexed(2))
+    end
+
+    it "preserves base color when other is default" do
+      base = CRT::Ansi::Style.new(fg: CRT::Ansi::Color.indexed(1))
+      other = CRT::Ansi::Style.default
+      merged = base.merge(other)
+      merged.fg.should eq(CRT::Ansi::Color.indexed(1))
+    end
+
+    it "preserves base hyperlink when other has none" do
+      base = CRT::Ansi::Style.default.with_hyperlink("https://example.com")
+      other = CRT::Ansi::Style.new(bold: true)
+      merged = base.merge(other)
+      merged.hyperlink.should_not be_nil
+      merged.bold.should be_true
+    end
+  end
+
   describe "#with_fg" do
     it "returns a new style with the given foreground" do
       base = CRT::Ansi::Style.default

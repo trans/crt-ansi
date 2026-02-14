@@ -49,6 +49,23 @@ module CRT::Ansi
       copy_with(hyperlink: nil)
     end
 
+    # Merge another style on top of this one. Non-default properties of
+    # `other` override; boolean attributes are OR'd (additive).
+    def merge(other : Style) : self
+      Style.new(
+        fg: other.fg.default? ? @fg : other.fg,
+        bg: other.bg.default? ? @bg : other.bg,
+        bold: @bold || other.bold,
+        dim: @dim || other.dim,
+        italic: @italic || other.italic,
+        underline: @underline || other.underline,
+        blink: @blink || other.blink,
+        inverse: @inverse || other.inverse,
+        strikethrough: @strikethrough || other.strikethrough,
+        hyperlink: other.hyperlink || @hyperlink,
+      )
+    end
+
     def append_sgr(io : IO, capabilities : Capabilities = CRT::Ansi.context.capabilities) : Nil
       io << "\e[0"
       io << ";1" if @bold && capabilities.bold
