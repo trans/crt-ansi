@@ -206,6 +206,111 @@ describe CRT::Ansi::Input do
     end
   end
 
+  describe "SGR mouse events" do
+    it "parses left button press" do
+      # ESC[<0;11;6M = left press at (10, 5) — 1-indexed
+      event = input_from("\e[<0;11;6M").read_event
+      event.should be_a(CRT::Ansi::Mouse)
+      mouse = event.as(CRT::Ansi::Mouse)
+      mouse.button.should eq(CRT::Ansi::Mouse::Button::Left)
+      mouse.action.should eq(CRT::Ansi::Mouse::Action::Press)
+      mouse.x.should eq(10)  # 11 - 1
+      mouse.y.should eq(5)   # 6 - 1
+    end
+
+    it "parses left button release" do
+      # ESC[<0;5;3m = left release at (4, 2)
+      event = input_from("\e[<0;5;3m").read_event
+      event.should be_a(CRT::Ansi::Mouse)
+      mouse = event.as(CRT::Ansi::Mouse)
+      mouse.button.should eq(CRT::Ansi::Mouse::Button::Left)
+      mouse.action.should eq(CRT::Ansi::Mouse::Action::Release)
+      mouse.x.should eq(4)
+      mouse.y.should eq(2)
+    end
+
+    it "parses middle button" do
+      event = input_from("\e[<1;1;1M").read_event.as(CRT::Ansi::Mouse)
+      event.button.should eq(CRT::Ansi::Mouse::Button::Middle)
+    end
+
+    it "parses right button" do
+      event = input_from("\e[<2;1;1M").read_event.as(CRT::Ansi::Mouse)
+      event.button.should eq(CRT::Ansi::Mouse::Button::Right)
+    end
+
+    it "parses scroll up" do
+      event = input_from("\e[<64;1;1M").read_event.as(CRT::Ansi::Mouse)
+      event.button.should eq(CRT::Ansi::Mouse::Button::ScrollUp)
+    end
+
+    it "parses scroll down" do
+      event = input_from("\e[<65;1;1M").read_event.as(CRT::Ansi::Mouse)
+      event.button.should eq(CRT::Ansi::Mouse::Button::ScrollDown)
+    end
+
+    it "parses motion events" do
+      # bit 5 (32) = motion flag: 32 + 0 = 32
+      event = input_from("\e[<32;10;20M").read_event.as(CRT::Ansi::Mouse)
+      event.button.should eq(CRT::Ansi::Mouse::Button::Left)
+      event.action.should eq(CRT::Ansi::Mouse::Action::Motion)
+    end
+
+    it "parses Shift modifier" do
+      # bit 2 (4) = shift: 4 + 0 = 4
+      event = input_from("\e[<4;1;1M").read_event.as(CRT::Ansi::Mouse)
+      event.shift?.should be_true
+      event.alt?.should be_false
+      event.ctrl?.should be_false
+    end
+
+    it "parses Alt modifier" do
+      # bit 3 (8) = alt: 8 + 0 = 8
+      event = input_from("\e[<8;1;1M").read_event.as(CRT::Ansi::Mouse)
+      event.alt?.should be_true
+    end
+
+    it "parses Ctrl modifier" do
+      # bit 4 (16) = ctrl: 16 + 0 = 16
+      event = input_from("\e[<16;1;1M").read_event.as(CRT::Ansi::Mouse)
+      event.ctrl?.should be_true
+    end
+
+    it "parses combined modifiers" do
+      # shift(4) + alt(8) + ctrl(16) + left(0) = 28
+      event = input_from("\e[<28;1;1M").read_event.as(CRT::Ansi::Mouse)
+      event.shift?.should be_true
+      event.alt?.should be_true
+      event.ctrl?.should be_true
+    end
+  end
+
+  describe "#read_key with mouse events" do
+    it "skips mouse events and returns next key" do
+      # Mouse event followed by 'a'
+      input = input_from("\e[<0;1;1Ma")
+      key = input.read_key
+      key.should_not be_nil
+      key.not_nil!.char.should eq("a")
+    end
+  end
+
+  describe "#read_event" do
+    it "returns Key for keyboard input" do
+      event = input_from("a").read_event
+      event.should be_a(CRT::Ansi::Key)
+    end
+
+    it "returns Mouse for mouse input" do
+      event = input_from("\e[<0;1;1M").read_event
+      event.should be_a(CRT::Ansi::Mouse)
+    end
+
+    it "returns nil on EOF" do
+      input_from("").read_event.should be_nil
+    end
+  end
+
   describe "EOF" do
     it "returns nil on empty input" do
       input_from("").read_key.should be_nil

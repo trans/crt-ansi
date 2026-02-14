@@ -6,14 +6,13 @@ module CRT::Ansi
       @len = 0
     end
 
-    # Read the next key event (blocking).
-    def read_key : Key?
+    # Read the next input event (blocking). Returns Key or Mouse.
+    def read_event : Event?
       byte = read_byte
       return nil unless byte
 
       case byte
       when 0x01..0x07, 0x0e..0x1a
-        # Ctrl+A..G, Ctrl+N..Z
         Key.ctrl(('a'.ord + byte - 1).chr)
       when 0x08
         Key.new(Key::Code::Backspace)
@@ -30,7 +29,16 @@ module CRT::Ansi
       end
     end
 
-    private def parse_escape : Key
+    # Read the next key event (blocking). Discards mouse events.
+    def read_key : Key?
+      loop do
+        event = read_event
+        return nil unless event
+        return event if event.is_a?(Key)
+      end
+    end
+
+    private def parse_escape : Event
       b = peek_byte(timeout: 50.milliseconds)
 
       # Bare ESC (no followup within timeout)
@@ -44,7 +52,6 @@ module CRT::Ansi
         consume_byte
         parse_ss3
       when 0x1b
-        # ESC ESC = Escape
         consume_byte
         Key.new(Key::Code::Escape)
       else
@@ -55,7 +62,14 @@ module CRT::Ansi
       end
     end
 
-    private def parse_csi : Key
+    private def parse_csi : Event
+      # Check for SGR mouse: ESC[< ...
+      first = peek_buffered_byte
+      if first == 0x3c # '<'
+        consume_byte
+        return parse_sgr_mouse
+      end
+
       # Accumulate parameter bytes (digits and semicolons) then final byte
       params = String::Builder.new
       loop do
@@ -72,6 +86,61 @@ module CRT::Ansi
           return Key.new(Key::Code::Escape)
         end
       end
+    end
+
+    # SGR mouse: ESC[< button;x;y M/m
+    # button encoding: bits 0-1 = button, bit 5 = motion, bit 6 = scroll
+    # Final byte: M = press/motion, m = release
+    private def parse_sgr_mouse : Event
+      params = String::Builder.new
+      loop do
+        b = read_byte
+        return Key.new(Key::Code::Escape) unless b
+
+        if b.chr == 'M' || b.chr == 'm'
+          return decode_sgr_mouse(params.to_s, b.chr)
+        else
+          params << b.chr
+        end
+      end
+    end
+
+    private def decode_sgr_mouse(params : String, final : Char) : Event
+      parts = params.split(';')
+      return Key.new(Key::Code::Escape) unless parts.size == 3
+
+      code = parts[0].to_i? || return Key.new(Key::Code::Escape)
+      x = (parts[1].to_i? || return Key.new(Key::Code::Escape)) - 1  # 1-indexed → 0-indexed
+      y = (parts[2].to_i? || return Key.new(Key::Code::Escape)) - 1
+
+      shift = (code & 4) != 0
+      alt = (code & 8) != 0
+      ctrl = (code & 16) != 0
+
+      button_code = code & 0x43  # bits 0-1 + bit 6
+      is_motion = (code & 32) != 0
+
+      action = if is_motion
+                 Mouse::Action::Motion
+               elsif final == 'm'
+                 Mouse::Action::Release
+               else
+                 Mouse::Action::Press
+               end
+
+      button = case button_code
+               when 0  then Mouse::Button::Left
+               when 1  then Mouse::Button::Middle
+               when 2  then Mouse::Button::Right
+               when 3  then Mouse::Button::None  # release in some encodings
+               when 64 then Mouse::Button::ScrollUp
+               when 65 then Mouse::Button::ScrollDown
+               when 66 then Mouse::Button::ScrollLeft
+               when 67 then Mouse::Button::ScrollRight
+               else         Mouse::Button::None
+               end
+
+      Mouse.new(button, action, x, y, shift: shift, alt: alt, ctrl: ctrl)
     end
 
     private def decode_csi(params : String, final : Char) : Key
@@ -96,7 +165,7 @@ module CRT::Ansi
       when '~'
         decode_tilde(parts[0]?, shift: shift, alt: alt, ctrl: ctrl)
       else
-        Key.new(Key::Code::Escape) # unknown sequence
+        Key.new(Key::Code::Escape)
       end
     end
 
@@ -155,13 +224,11 @@ module CRT::Ansi
     end
 
     private def parse_char(byte : UInt8) : Key
-      # Determine UTF-8 sequence length from leading byte
       if byte < 0x80
         Key.char(byte.chr)
       elsif byte < 0xc0
-        Key.char(byte.chr) # unexpected continuation byte
+        Key.char(byte.chr)
       else
-        # Multi-byte UTF-8
         needed = case byte
                  when .< 0xe0 then 1
                  when .< 0xf0 then 2
@@ -211,14 +278,17 @@ module CRT::Ansi
       read_byte
     end
 
+    # Peek at the next buffered byte without consuming (no IO read).
+    private def peek_buffered_byte : UInt8?
+      @pos < @len ? @buf[@pos] : nil
+    end
+
     # Peek at next byte with timeout. Returns nil if no data arrives.
     private def peek_byte(timeout : Time::Span) : UInt8?
-      # If we have buffered data, return it without consuming
       if @pos < @len
         return @buf[@pos]
       end
 
-      # Try a timed read
       if @io.is_a?(IO::FileDescriptor)
         fd = @io.as(IO::FileDescriptor)
         if wait_for_data(fd, timeout)
@@ -232,7 +302,6 @@ module CRT::Ansi
         return nil
       end
 
-      # Non-FD fallback: blocking read
       n = @io.read(@buf)
       return nil if n == 0
       @pos = 0
@@ -240,7 +309,6 @@ module CRT::Ansi
       @buf[0]
     end
 
-    # Wait for data on file descriptor with timeout using poll(2).
     private def wait_for_data(fd : IO::FileDescriptor, timeout : Time::Span) : Bool
       {% if flag?(:unix) %}
         pollfd = LibC::PollFD.new
@@ -250,7 +318,7 @@ module CRT::Ansi
         ret = LibC.poll(pointerof(pollfd), 1, ms)
         ret > 0
       {% else %}
-        true # fallback: assume data available
+        true
       {% end %}
     end
   end

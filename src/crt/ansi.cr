@@ -18,6 +18,8 @@ require "./ansi/border"
 require "./ansi/panel"
 require "./ansi/renderer"
 require "./ansi/key"
+require "./ansi/mouse"
+require "./ansi/event"
 require "./ansi/input"
 require "./ansi/screen"
 

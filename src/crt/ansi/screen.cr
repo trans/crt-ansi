@@ -23,6 +23,7 @@ module CRT::Ansi
     getter? alt_screen : Bool
     getter? raw_mode : Bool
     getter? cursor_hidden : Bool
+    getter? mouse_enabled : Bool
     @resize_handler : Proc(Int32, Int32, Nil)? = nil
     @input : Input? = nil
 
@@ -32,6 +33,7 @@ module CRT::Ansi
       alt_screen : Bool = true,
       raw_mode : Bool = true,
       hide_cursor : Bool = true,
+      mouse : Bool = false,
       context : Context? = nil,
     )
       @context = context || Context.detect
@@ -43,9 +45,11 @@ module CRT::Ansi
       @alt_screen = false
       @raw_mode = false
       @cursor_hidden = false
+      @mouse_enabled = false
       @wants_alt_screen = alt_screen
       @wants_raw_mode = raw_mode
       @wants_hide_cursor = hide_cursor
+      @wants_mouse = mouse
     end
 
     def self.open(io : IO = STDOUT, **opts, &) : Nil
@@ -65,6 +69,7 @@ module CRT::Ansi
       enter_alt_screen if @wants_alt_screen
       enter_raw_mode if @wants_raw_mode
       hide_cursor if @wants_hide_cursor
+      enable_mouse if @wants_mouse
       install_resize_handler
       @io.flush
     end
@@ -74,6 +79,7 @@ module CRT::Ansi
       @running = false
 
       @render.reset_terminal_state!
+      disable_mouse if @mouse_enabled
       show_cursor if @cursor_hidden
       exit_alt_screen if @alt_screen
       exit_raw_mode if @raw_mode
@@ -108,13 +114,26 @@ module CRT::Ansi
       @render.present
     end
 
-    # Read the next key event (blocking).
+    # Read the next input event (blocking). Returns Key or Mouse.
+    def read_event : Event?
+      input.read_event
+    end
+
+    # Read the next key event (blocking). Discards mouse events.
     def read_key : Key?
       input.read_key
     end
 
     def input : Input
       @input ||= Input.new(STDIN)
+    end
+
+    def mouse(enabled : Bool) : Nil
+      if enabled
+        enable_mouse
+      else
+        disable_mouse
+      end
     end
 
     # Delegate drawing methods to the renderer.
@@ -165,6 +184,16 @@ module CRT::Ansi
         end
       {% end %}
       {80, 24}
+    end
+
+    private def enable_mouse : Nil
+      @io << "\e[?1000h\e[?1006h"
+      @mouse_enabled = true
+    end
+
+    private def disable_mouse : Nil
+      @io << "\e[?1006l\e[?1000l"
+      @mouse_enabled = false
     end
 
     private def install_resize_handler : Nil

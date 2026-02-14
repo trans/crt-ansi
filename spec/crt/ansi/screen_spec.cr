@@ -157,6 +157,48 @@ describe CRT::Ansi::Screen do
     end
   end
 
+  describe "mouse support" do
+    it "enables mouse tracking on start when mouse: true" do
+      io = IO::Memory.new
+      screen = CRT::Ansi::Screen.new(io, alt_screen: false, raw_mode: false, hide_cursor: false, mouse: true)
+      screen.start
+      screen.mouse_enabled?.should be_true
+      output = io.to_s
+      output.should contain("\e[?1000h")
+      output.should contain("\e[?1006h")
+    end
+
+    it "disables mouse tracking on stop" do
+      io = IO::Memory.new
+      screen = CRT::Ansi::Screen.new(io, alt_screen: false, raw_mode: false, hide_cursor: false, mouse: true)
+      screen.start
+      screen.stop
+      screen.mouse_enabled?.should be_false
+      output = io.to_s
+      output.should contain("\e[?1006l")
+      output.should contain("\e[?1000l")
+    end
+
+    it "does not enable mouse when mouse: false" do
+      io = IO::Memory.new
+      screen = CRT::Ansi::Screen.new(io, alt_screen: false, raw_mode: false, hide_cursor: false, mouse: false)
+      screen.start
+      screen.mouse_enabled?.should be_false
+    end
+
+    it "toggles mouse with #mouse method" do
+      io = IO::Memory.new
+      screen = CRT::Ansi::Screen.new(io, alt_screen: false, raw_mode: false, hide_cursor: false)
+      screen.start
+
+      screen.mouse(true)
+      screen.mouse_enabled?.should be_true
+
+      screen.mouse(false)
+      screen.mouse_enabled?.should be_false
+    end
+  end
+
   describe "#on_resize" do
     it "stores a resize handler" do
       io = IO::Memory.new
