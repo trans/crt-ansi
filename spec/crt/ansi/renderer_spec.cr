@@ -5,12 +5,12 @@ describe CRT::Ansi::Renderer do
     io = IO::Memory.new
     renderer = CRT::Ansi::Renderer.new(io, 4, 1)
 
-    renderer.back_buffer.write(0, 0, "AB")
+    renderer.write(0, 0, "AB")
     renderer.present
     first_frame = io.to_s
     first_frame.should contain("\e[1;1HAB")
 
-    renderer.back_buffer.put(1, 0, "C")
+    renderer.put(1, 0, "C")
     renderer.present
 
     second_frame = io.to_s.byte_slice(first_frame.bytesize, io.to_s.bytesize - first_frame.bytesize)
@@ -28,12 +28,12 @@ describe CRT::Ansi::Renderer do
     renderer = CRT::Ansi::Renderer.new(io, 1, 1, context: ctx)
 
     linked = CRT::Ansi::Style.default.with_hyperlink("https://example.com")
-    renderer.back_buffer.put(0, 0, "X", linked)
+    renderer.put(0, 0, "X", linked)
     renderer.present
     first_frame = io.to_s
     first_frame.should contain("\e]8;;https://example.com\e\\")
 
-    renderer.back_buffer.put(0, 0, "Y", CRT::Ansi::Style.default)
+    renderer.put(0, 0, "Y", CRT::Ansi::Style.default)
     renderer.present
 
     second_frame = io.to_s.byte_slice(first_frame.bytesize, io.to_s.bytesize - first_frame.bytesize)
@@ -48,7 +48,7 @@ describe CRT::Ansi::Renderer do
     renderer = CRT::Ansi::Renderer.new(io, 1, 1, context: ctx)
     linked = CRT::Ansi::Style.default.with_hyperlink("https://example.com")
 
-    renderer.back_buffer.put(0, 0, "X", linked)
+    renderer.put(0, 0, "X", linked)
     renderer.present
 
     io.to_s.should_not contain("\e]8;")
@@ -57,7 +57,7 @@ describe CRT::Ansi::Renderer do
   it "returns output bytesize from present" do
     io = IO::Memory.new
     renderer = CRT::Ansi::Renderer.new(io, 3, 1)
-    renderer.back_buffer.write(0, 0, "Hi")
+    renderer.write(0, 0, "Hi")
     bytes = renderer.present
     bytes.should be > 0
   end
@@ -70,20 +70,44 @@ describe CRT::Ansi::Renderer do
     bytes.should eq(0)
   end
 
+  describe "#width / #height" do
+    it "exposes buffer dimensions" do
+      io = IO::Memory.new
+      renderer = CRT::Ansi::Renderer.new(io, 40, 10)
+      renderer.width.should eq(40)
+      renderer.height.should eq(10)
+    end
+  end
+
+  describe "drawing delegates" do
+    it "delegates put/write/clear/cell to the back buffer" do
+      io = IO::Memory.new
+      renderer = CRT::Ansi::Renderer.new(io, 5, 1)
+
+      renderer.write(0, 0, "Hi")
+      renderer.cell(0, 0).grapheme.should eq("H")
+      renderer.cell(1, 0).grapheme.should eq("i")
+
+      renderer.put(2, 0, "!")
+      renderer.cell(2, 0).grapheme.should eq("!")
+
+      renderer.clear
+      renderer.cell(0, 0).blank?.should be_true
+    end
+  end
+
   describe "#resize" do
     it "creates new buffers and triggers full redraw" do
       io = IO::Memory.new
       renderer = CRT::Ansi::Renderer.new(io, 3, 1)
-      renderer.back_buffer.write(0, 0, "AB")
+      renderer.write(0, 0, "AB")
       renderer.present
 
       renderer.resize(5, 2)
-      renderer.back_buffer.width.should eq(5)
-      renderer.back_buffer.height.should eq(2)
-      renderer.front_buffer.width.should eq(5)
+      renderer.width.should eq(5)
+      renderer.height.should eq(2)
 
-      # After resize, writing and presenting should work
-      renderer.back_buffer.write(0, 0, "Hello")
+      renderer.write(0, 0, "Hello")
       bytes = renderer.present
       bytes.should be > 0
     end
@@ -93,7 +117,7 @@ describe CRT::Ansi::Renderer do
     it "causes next present to render all cells" do
       io = IO::Memory.new
       renderer = CRT::Ansi::Renderer.new(io, 3, 1)
-      renderer.back_buffer.write(0, 0, "ABC")
+      renderer.write(0, 0, "ABC")
       renderer.present
       first_size = io.to_s.bytesize
 
@@ -101,7 +125,6 @@ describe CRT::Ansi::Renderer do
       renderer.force_full_redraw!
       renderer.present
       output = io.to_s.byte_slice(first_size, io.to_s.bytesize - first_size)
-      # Full redraw should emit cursor move + content
       output.should contain("ABC")
     end
   end
@@ -119,10 +142,9 @@ describe CRT::Ansi::Renderer do
     it "applies origin_x and origin_y to cursor positioning" do
       io = IO::Memory.new
       renderer = CRT::Ansi::Renderer.new(io, 3, 1, origin_x: 5, origin_y: 10)
-      renderer.back_buffer.put(0, 0, "A")
+      renderer.put(0, 0, "A")
       renderer.present
 
-      # Cursor should be at origin: row 10, col 5
       io.to_s.should contain("\e[10;5H")
     end
 
@@ -138,11 +160,11 @@ describe CRT::Ansi::Renderer do
       io = IO::Memory.new
       renderer = CRT::Ansi::Renderer.new(io, 3, 1)
       style = CRT::Ansi::Style.new(bold: true)
-      renderer.back_buffer.write(0, 0, "Hi", style)
+      renderer.write(0, 0, "Hi", style)
       renderer.present
 
       output = io.to_s
-      output.should contain("\e[0;1m")  # bold SGR
+      output.should contain("\e[0;1m")
       output.should contain("Hi")
     end
   end

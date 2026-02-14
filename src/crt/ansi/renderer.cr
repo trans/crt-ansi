@@ -1,10 +1,34 @@
 module CRT::Ansi
   class Renderer
-    getter front_buffer : Buffer
-    getter back_buffer : Buffer
+    protected getter front_buffer : Buffer
+    protected getter back_buffer : Buffer
     getter origin_x : Int32
     getter origin_y : Int32
     getter context : Context
+
+    def width : Int32
+      @back_buffer.width
+    end
+
+    def height : Int32
+      @back_buffer.height
+    end
+
+    def put(x : Int, y : Int, grapheme : String, style : Style = @back_buffer.default_style) : Nil
+      @back_buffer.put(x, y, grapheme, style)
+    end
+
+    def write(x : Int, y : Int, text : String, style : Style = @back_buffer.default_style) : Int32
+      @back_buffer.write(x, y, text, style)
+    end
+
+    def clear(style : Style = @back_buffer.default_style) : Nil
+      @back_buffer.clear(style)
+    end
+
+    def cell(x : Int, y : Int) : Cell
+      @back_buffer.cell(x, y)
+    end
 
     def initialize(@io : IO, width : Int, height : Int, *, origin_x : Int = 1, origin_y : Int = 1, context : Context = CRT::Ansi.context)
       @origin_x = origin_x.to_i

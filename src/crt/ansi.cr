@@ -13,6 +13,9 @@ require "./ansi/context"
 require "./ansi/cell"
 require "./ansi/buffer"
 require "./ansi/renderer"
+require "./ansi/key"
+require "./ansi/input"
+require "./ansi/screen"
 
 module CRT::Ansi
   @@context : Context = Context.new
