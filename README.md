@@ -139,25 +139,97 @@ Color.rgb(255, 100, 0)         # 24-bit truecolor
 Color output adapts to detected terminal capabilities -- truecolor
 values are downsampled to 256 or 16 colors when needed.
 
-## Input
+## Frame Loop
+
+`Screen#run` provides a frame-rate-limited loop that yields once per
+frame and calls `present` automatically. Use `poll_event` inside
+the block for non-blocking input.
 
 ```crystal
-CRT::Ansi::Screen.open(raw_mode: true, mouse: true) do |screen|
-  loop do
-    event = screen.read_event
+CRT::Ansi::Screen.open(mouse: true) do |screen|
+  y = 0
 
-    case event
-    when CRT::Ansi::Key
-      break if event.char == "q"
-      # event.name, event.ctrl?, event.alt?, event.shift?
-    when CRT::Ansi::Mouse
-      # event.x, event.y, event.button, event.kind
+  screen.run(fps: 30) do
+    while event = screen.poll_event
+      case event
+      when CRT::Ansi::Key
+        break if event.char == "q"
+        y += 1 if event.code.down?
+        y -= 1 if event.code.up?
+      when CRT::Ansi::Mouse
+        # event.x, event.y, event.button, event.action
+      end
     end
 
-    screen.present
+    screen.clear
+    screen.write(0, 0, "Scroll: #{y}")
   end
 end
 ```
+
+For blocking input (no animation needed), use `read_event` directly:
+
+```crystal
+CRT::Ansi::Screen.open do |screen|
+  loop do
+    screen.clear
+    screen.write(0, 0, "Press q to quit")
+    screen.present
+
+    key = screen.read_key
+    break if key && key.char == "q"
+  end
+end
+```
+
+### Dirty Flag Pattern
+
+`present` already diffs -- zero changes means zero IO. If you want
+to also skip the drawing calls, use a local dirty flag:
+
+```crystal
+screen.run(fps: 30) do
+  while event = screen.poll_event
+    dirty = true
+    # handle event, update state
+  end
+
+  if dirty
+    screen.clear
+    # draw
+    dirty = false
+  end
+end
+```
+
+### Concurrency
+
+With Crystal's multi-threading (`-Dpreview_mt`), keep all drawing on
+a single fiber. Other fibers communicate via channels:
+
+```crystal
+updates = Channel(String).new
+
+spawn do
+  # background work
+  updates.send("new data")
+end
+
+screen.run(fps: 30) do
+  while event = screen.poll_event
+    # handle input
+  end
+
+  select
+  when msg = updates.receive?
+    # apply update, redraw
+  else
+  end
+end
+```
+
+The buffer is not thread-safe by design -- the single-fiber draw loop
+is the correct pattern, not mutexes.
 
 ## Terminal Capabilities
 
