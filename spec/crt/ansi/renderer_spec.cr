@@ -200,7 +200,7 @@ describe CRT::Ansi::Renderer do
     it "fills the interior with a custom character" do
       io = IO::Memory.new
       renderer = CRT::Ansi::Renderer.new(io, 5, 3)
-      renderer.box(0, 0, h: 5, v: 3, fill: CRT::Ansi::StyleChar.new('·'))
+      renderer.box(0, 0, h: 5, v: 3, fill: CRT::Ansi::Style::Char.new('·'))
 
       renderer.cell(1, 1).grapheme.should eq("·")
       renderer.cell(2, 1).grapheme.should eq("·")

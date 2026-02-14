@@ -1,12 +1,12 @@
 require "../../spec_helper"
 
-private alias Part = CRT::Ansi::StyledText::Part
+private alias Part = CRT::Ansi::Style::Text::Part
 
-describe CRT::Ansi::StyledText do
+describe CRT::Ansi::Style::Text do
   describe ".new(Array(Part))" do
     it "applies styles to subsequent text" do
       bold = CRT::Ansi::Style.new(bold: true)
-      text = CRT::Ansi::StyledText.new(["plain ", bold, "bold"] of Part)
+      text = CRT::Ansi::Style::Text.new(["plain ", bold, "bold"] of Part)
 
       text.spans.size.should eq(2)
       text.spans[0].text.should eq("plain ")
@@ -18,7 +18,7 @@ describe CRT::Ansi::StyledText do
     it "merges nested styles additively" do
       bold = CRT::Ansi::Style.new(bold: true)
       red = CRT::Ansi::Style.new(fg: CRT::Ansi::Color.indexed(1))
-      text = CRT::Ansi::StyledText.new([bold, red, "bold+red"] of Part)
+      text = CRT::Ansi::Style::Text.new([bold, red, "bold+red"] of Part)
 
       text.spans.size.should eq(1)
       text.spans[0].style.bold.should be_true
@@ -28,9 +28,9 @@ describe CRT::Ansi::StyledText do
     it "pops the style stack" do
       bold = CRT::Ansi::Style.new(bold: true)
       red = CRT::Ansi::Style.new(fg: CRT::Ansi::Color.indexed(1))
-      pop = CRT::Ansi::StyledText::POP
+      pop = CRT::Ansi::Style::POP
 
-      text = CRT::Ansi::StyledText.new([
+      text = CRT::Ansi::Style::Text.new([
         bold, "bold ", red, "bold+red", pop, " just bold",
       ] of Part)
 
@@ -47,8 +47,8 @@ describe CRT::Ansi::StyledText do
     end
 
     it "does not pop below the default" do
-      pop = CRT::Ansi::StyledText::POP
-      text = CRT::Ansi::StyledText.new([pop, pop, pop, "safe"] of Part)
+      pop = CRT::Ansi::Style::POP
+      text = CRT::Ansi::Style::Text.new([pop, pop, pop, "safe"] of Part)
 
       text.spans.size.should eq(1)
       text.spans[0].style.should eq(CRT::Ansi::Style.default)
@@ -57,9 +57,9 @@ describe CRT::Ansi::StyledText do
     it "resets the style stack" do
       bold = CRT::Ansi::Style.new(bold: true)
       red = CRT::Ansi::Style.new(fg: CRT::Ansi::Color.indexed(1))
-      reset = CRT::Ansi::StyledText::RESET
+      reset = CRT::Ansi::Style::RESET
 
-      text = CRT::Ansi::StyledText.new([
+      text = CRT::Ansi::Style::Text.new([
         bold, red, "styled", reset, " plain",
       ] of Part)
 
@@ -69,12 +69,12 @@ describe CRT::Ansi::StyledText do
       text.spans[1].style.should eq(CRT::Ansi::Style.default)
     end
 
-    it "splices nested StyledText spans verbatim" do
+    it "splices nested Style::Text spans verbatim" do
       inner_style = CRT::Ansi::Style.new(italic: true)
-      inner = CRT::Ansi::StyledText.new.add("inner", inner_style)
+      inner = CRT::Ansi::Style::Text.new.add("inner", inner_style)
 
       bold = CRT::Ansi::Style.new(bold: true)
-      text = CRT::Ansi::StyledText.new([bold, "outer ", inner, " more"] of Part)
+      text = CRT::Ansi::Style::Text.new([bold, "outer ", inner, " more"] of Part)
 
       text.spans.size.should eq(3)
       text.spans[0].text.should eq("outer ")
@@ -87,12 +87,12 @@ describe CRT::Ansi::StyledText do
       text.spans[2].style.bold.should be_true
     end
 
-    it "emits StyleChar with its own style" do
+    it "emits Style::Char with its own style" do
       char_style = CRT::Ansi::Style.new(fg: CRT::Ansi::Color.indexed(2))
-      sc = CRT::Ansi::StyleChar.new("*", char_style)
+      sc = CRT::Ansi::Style::Char.new("*", char_style)
 
       bold = CRT::Ansi::Style.new(bold: true)
-      text = CRT::Ansi::StyledText.new([bold, "text", sc, "more"] of Part)
+      text = CRT::Ansi::Style::Text.new([bold, "text", sc, "more"] of Part)
 
       text.spans.size.should eq(3)
       text.spans[0].text.should eq("text")
@@ -106,22 +106,22 @@ describe CRT::Ansi::StyledText do
     end
 
     it "skips empty strings" do
-      text = CRT::Ansi::StyledText.new(["", "hello", ""] of Part)
+      text = CRT::Ansi::Style::Text.new(["", "hello", ""] of Part)
       text.spans.size.should eq(1)
       text.spans[0].text.should eq("hello")
     end
 
     it "handles empty array" do
-      text = CRT::Ansi::StyledText.new([] of Part)
+      text = CRT::Ansi::Style::Text.new([] of Part)
       text.empty?.should be_true
     end
 
     it "accepts a custom default style" do
       base = CRT::Ansi::Style.new(fg: CRT::Ansi::Color.indexed(7))
-      reset = CRT::Ansi::StyledText::RESET
+      reset = CRT::Ansi::Style::RESET
       bold = CRT::Ansi::Style.new(bold: true)
 
-      text = CRT::Ansi::StyledText.new([bold, "styled", reset, "plain"] of Part, default: base)
+      text = CRT::Ansi::Style::Text.new([bold, "styled", reset, "plain"] of Part, default: base)
 
       text.spans[0].style.bold.should be_true
       text.spans[0].style.fg.should eq(CRT::Ansi::Color.indexed(7))
@@ -131,7 +131,7 @@ describe CRT::Ansi::StyledText do
     end
 
     it "handles consecutive strings" do
-      text = CRT::Ansi::StyledText.new(["hello", " ", "world"] of Part)
+      text = CRT::Ansi::Style::Text.new(["hello", " ", "world"] of Part)
       text.spans.size.should eq(3)
       text.to_s.should eq("hello world")
     end
@@ -139,7 +139,7 @@ describe CRT::Ansi::StyledText do
 
   describe "#add" do
     it "builds styled text with spans" do
-      text = CRT::Ansi::StyledText.new
+      text = CRT::Ansi::Style::Text.new
         .add("Hello", CRT::Ansi::Style.new(bold: true))
         .add(" world", CRT::Ansi::Style.default)
 
@@ -152,7 +152,7 @@ describe CRT::Ansi::StyledText do
 
   describe "#width" do
     it "sums display widths of all spans" do
-      text = CRT::Ansi::StyledText.new
+      text = CRT::Ansi::Style::Text.new
         .add("Hi", CRT::Ansi::Style.default)
         .add(" there", CRT::Ansi::Style.default)
 
@@ -160,7 +160,7 @@ describe CRT::Ansi::StyledText do
     end
 
     it "handles wide characters" do
-      text = CRT::Ansi::StyledText.new
+      text = CRT::Ansi::Style::Text.new
         .add("\u{4e16}", CRT::Ansi::Style.default)  # 世 = 2 wide
 
       text.width.should eq(2)
@@ -169,7 +169,7 @@ describe CRT::Ansi::StyledText do
 
   describe "#to_s" do
     it "concatenates all span text" do
-      text = CRT::Ansi::StyledText.new
+      text = CRT::Ansi::Style::Text.new
         .add("Hello", CRT::Ansi::Style.new(bold: true))
         .add(" world", CRT::Ansi::Style.default)
 
@@ -179,16 +179,16 @@ describe CRT::Ansi::StyledText do
 
   describe "#empty?" do
     it "is true for empty text" do
-      CRT::Ansi::StyledText.new.empty?.should be_true
+      CRT::Ansi::Style::Text.new.empty?.should be_true
     end
 
     it "is true for spans with empty strings" do
-      text = CRT::Ansi::StyledText.new.add("", CRT::Ansi::Style.default)
+      text = CRT::Ansi::Style::Text.new.add("", CRT::Ansi::Style.default)
       text.empty?.should be_true
     end
 
     it "is false when any span has content" do
-      text = CRT::Ansi::StyledText.new.add("x", CRT::Ansi::Style.default)
+      text = CRT::Ansi::Style::Text.new.add("x", CRT::Ansi::Style.default)
       text.empty?.should be_false
     end
   end
@@ -197,7 +197,7 @@ describe CRT::Ansi::StyledText do
     it "yields graphemes with widths and styles" do
       bold = CRT::Ansi::Style.new(bold: true)
       normal = CRT::Ansi::Style.default
-      text = CRT::Ansi::StyledText.new
+      text = CRT::Ansi::Style::Text.new
         .add("AB", bold)
         .add("c", normal)
 

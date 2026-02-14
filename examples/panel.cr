@@ -57,7 +57,7 @@ CRT::Ansi::Screen.open(alt_screen: true, raw_mode: true, hide_cursor: true) do |
     # Panel 5: ASCII border, fill character
     screen.panel(54, 12, h: 24, v: 8)
       .border(Border::ASCII)
-      .fill(StyleChar.new(".", Style.new(fg: Color.rgb(60, 60, 60))))
+      .fill(Style::Char.new(".", Style.new(fg: Color.rgb(60, 60, 60))))
       .text("ASCII border\nwith dot fill",
             style: Style.new(fg: Color.rgb(200, 200, 200), bold: true),
             align: Align::Center, wrap: Wrap::Word)

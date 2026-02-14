@@ -9,9 +9,9 @@ module CRT::Ansi
     @border : Border? = nil
     @border_style : Style = Style.default
 
-    @fill : Style | StyleChar | Nil = nil
+    @fill : Style | Style::Char | Nil = nil
 
-    @text_content : String | StyledText | Nil = nil
+    @text_content : String | Style::Text | Nil = nil
     @text_style : Style = Style.default
     @text_align : Align = Align::Left
     @text_valign : VAlign = VAlign::Top
@@ -31,12 +31,12 @@ module CRT::Ansi
       self
     end
 
-    def fill(fill : Style | StyleChar) : self
+    def fill(fill : Style | Style::Char) : self
       @fill = fill
       self
     end
 
-    def text(content : String | StyledText, *,
+    def text(content : String | Style::Text, *,
              style : Style = Style.default,
              align : Align = Align::Left,
              valign : VAlign = VAlign::Top,
@@ -86,7 +86,7 @@ module CRT::Ansi
 
       fill_char, fill_style = case f
                               in Style     then {" ", f}
-                              in StyleChar then {f.char, f.style}
+                              in Style::Char then {f.char, f.style}
                               in Nil       then return
                               end
 
@@ -111,8 +111,8 @@ module CRT::Ansi
 
       # Convert to styled spans if plain string.
       styled = case content
-               in String     then StyledText.new.add(content, @text_style)
-               in StyledText then content
+               in String     then Style::Text.new.add(content, @text_style)
+               in Style::Text then content
                in Nil        then return
                end
 
@@ -128,10 +128,10 @@ module CRT::Ansi
     end
 
     # A single laid-out line: array of spans with their measured total width.
-    private record LayoutLine, spans : Array(StyledText::Span), width : Int32
+    private record LayoutLine, spans : Array(Style::Text::Span), width : Int32
 
     # Split styled text into layout lines based on wrap mode.
-    private def layout_lines(text : StyledText, width : Int32) : Array(LayoutLine)
+    private def layout_lines(text : Style::Text, width : Int32) : Array(LayoutLine)
       # First split on explicit newlines into segments.
       segments = split_on_newlines(text)
 
@@ -150,13 +150,13 @@ module CRT::Ansi
     end
 
     # Split styled text on \n boundaries, producing an array of StyledText segments.
-    private def split_on_newlines(text : StyledText) : Array(StyledText)
-      segments = [StyledText.new]
+    private def split_on_newlines(text : Style::Text) : Array(Style::Text)
+      segments = [Style::Text.new]
 
       text.spans.each do |span|
         parts = span.text.split('\n', remove_empty: false)
         parts.each_with_index do |part, i|
-          segments << StyledText.new if i > 0
+          segments << Style::Text.new if i > 0
           segments.last.add(part, span.style) unless part.empty?
         end
       end
@@ -164,17 +164,17 @@ module CRT::Ansi
       segments
     end
 
-    private def measure_line(text : StyledText) : LayoutLine
+    private def measure_line(text : Style::Text) : LayoutLine
       w = 0
       text.each_grapheme { |_, gw, _| w += gw }
       LayoutLine.new(text.spans, w)
     end
 
     # Word wrap a single paragraph (no newlines) into lines.
-    private def wrap_word(text : StyledText, width : Int32, lines : Array(LayoutLine)) : Nil
+    private def wrap_word(text : Style::Text, width : Int32, lines : Array(LayoutLine)) : Nil
       plain = text.to_s
       if plain.empty?
-        lines << LayoutLine.new([] of StyledText::Span, 0)
+        lines << LayoutLine.new([] of Style::Text::Span, 0)
         return
       end
 
@@ -263,10 +263,10 @@ module CRT::Ansi
     end
 
     # Character wrap a single paragraph into lines.
-    private def wrap_char(text : StyledText, width : Int32, lines : Array(LayoutLine)) : Nil
+    private def wrap_char(text : Style::Text, width : Int32, lines : Array(LayoutLine)) : Nil
       plain = text.to_s
       if plain.empty?
-        lines << LayoutLine.new([] of StyledText::Span, 0)
+        lines << LayoutLine.new([] of Style::Text::Span, 0)
         return
       end
 
@@ -291,10 +291,10 @@ module CRT::Ansi
     end
 
     # Convert a flat list of graphemes back into coalesced spans.
-    private def graphemes_to_spans(graphemes : Array({String, Int32, Style})) : Array(StyledText::Span)
-      return [] of StyledText::Span if graphemes.empty?
+    private def graphemes_to_spans(graphemes : Array({String, Int32, Style})) : Array(Style::Text::Span)
+      return [] of Style::Text::Span if graphemes.empty?
 
-      spans = [] of StyledText::Span
+      spans = [] of Style::Text::Span
       current_text = String::Builder.new
       current_style = graphemes.first[2]
 
@@ -302,7 +302,7 @@ module CRT::Ansi
         if s == current_style
           current_text << g
         else
-          spans << StyledText::Span.new(current_text.to_s, current_style)
+          spans << Style::Text::Span.new(current_text.to_s, current_style)
           current_text = String::Builder.new
           current_text << g
           current_style = s
@@ -310,7 +310,7 @@ module CRT::Ansi
       end
 
       text = current_text.to_s
-      spans << StyledText::Span.new(text, current_style) unless text.empty?
+      spans << Style::Text::Span.new(text, current_style) unless text.empty?
       spans
     end
 
@@ -349,7 +349,7 @@ module CRT::Ansi
     end
 
     # Write spans directly to the renderer (no clipping needed).
-    private def write_spans(x : Int32, y : Int32, spans : Array(StyledText::Span)) : Nil
+    private def write_spans(x : Int32, y : Int32, spans : Array(Style::Text::Span)) : Nil
       cx = x
       spans.each do |span|
         cx = @render.write(cx, y, span.text, span.style)
@@ -357,7 +357,7 @@ module CRT::Ansi
     end
 
     # Clip overflowing spans based on alignment and optional ellipsis.
-    private def clip_and_write_spans(x : Int32, y : Int32, spans : Array(StyledText::Span),
+    private def clip_and_write_spans(x : Int32, y : Int32, spans : Array(Style::Text::Span),
                                      line_width : Int32, width : Int32) : Nil
       ellipsis = @text_ellipsis
       ellipsis_width = ellipsis ? DisplayWidth.width(ellipsis) : 0
@@ -373,7 +373,7 @@ module CRT::Ansi
     end
 
     # Left-aligned: keep beginning, clip end.
-    private def clip_from_right(x : Int32, y : Int32, spans : Array(StyledText::Span),
+    private def clip_from_right(x : Int32, y : Int32, spans : Array(Style::Text::Span),
                                 width : Int32, ellipsis : String?, ellipsis_width : Int32) : Nil
       avail = ellipsis ? width - ellipsis_width : width
       cx = x
@@ -398,7 +398,7 @@ module CRT::Ansi
     end
 
     # Right-aligned: keep end, clip beginning.
-    private def clip_from_left(x : Int32, y : Int32, spans : Array(StyledText::Span),
+    private def clip_from_left(x : Int32, y : Int32, spans : Array(Style::Text::Span),
                                line_width : Int32, width : Int32, ellipsis : String?,
                                ellipsis_width : Int32) : Nil
       avail = ellipsis ? width - ellipsis_width : width
@@ -428,7 +428,7 @@ module CRT::Ansi
     end
 
     # Center-aligned: clip both sides equally.
-    private def clip_center(x : Int32, y : Int32, spans : Array(StyledText::Span),
+    private def clip_center(x : Int32, y : Int32, spans : Array(Style::Text::Span),
                             line_width : Int32, width : Int32) : Nil
       skip = (line_width - width) // 2
 

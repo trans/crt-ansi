@@ -46,7 +46,7 @@ module CRT::Ansi
     def box(x : Int, y : Int, *, h : Int = 0, v : Int = 0,
             style : Style = @back_buffer.default_style,
             border : Border = Border::Single,
-            fill : Style | StyleChar | Nil = nil) : Nil
+            fill : Style | Style::Char | Nil = nil) : Nil
       hz, vt, tl, tr, bl, br = border.chars
 
       if h > 0 && v > 0
@@ -57,7 +57,7 @@ module CRT::Ansi
 
         fill_char, fill_style = case fill
                                 in Style    then {" ", fill}
-                                in StyleChar then {fill.char, fill.style}
+                                in Style::Char then {fill.char, fill.style}
                                 in Nil       then {nil, nil}
                                 end
 

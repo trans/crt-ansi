@@ -44,9 +44,9 @@ describe CRT::Ansi::Panel do
       r.cell(3, 1).style.should eq(bg)
     end
 
-    it "fills with a StyleChar" do
+    it "fills with a Style::Char" do
       r = renderer
-      r.panel(0, 0, h: 5, v: 3).border.fill(CRT::Ansi::StyleChar.new('·')).draw
+      r.panel(0, 0, h: 5, v: 3).border.fill(CRT::Ansi::Style::Char.new('·')).draw
 
       r.cell(1, 1).grapheme.should eq("·")
       r.cell(2, 1).grapheme.should eq("·")
@@ -316,12 +316,12 @@ describe CRT::Ansi::Panel do
     end
   end
 
-  describe "StyledText" do
+  describe "Style::Text" do
     it "renders styled spans" do
       r = renderer(20, 5)
       bold = CRT::Ansi::Style.new(bold: true)
       red = CRT::Ansi::Style.new(fg: CRT::Ansi::Color.indexed(1))
-      text = CRT::Ansi::StyledText.new
+      text = CRT::Ansi::Style::Text.new
         .add("He", bold)
         .add("lo", red)
 
@@ -341,7 +341,7 @@ describe CRT::Ansi::Panel do
       r = renderer(20, 10)
       bold = CRT::Ansi::Style.new(bold: true)
       normal = CRT::Ansi::Style.default
-      text = CRT::Ansi::StyledText.new
+      text = CRT::Ansi::Style::Text.new
         .add("one ", bold)
         .add("two three", normal)
 
@@ -362,7 +362,7 @@ describe CRT::Ansi::Panel do
     it "splits styled text on newlines" do
       r = renderer(20, 10)
       bold = CRT::Ansi::Style.new(bold: true)
-      text = CRT::Ansi::StyledText.new
+      text = CRT::Ansi::Style::Text.new
         .add("a\nb", bold)
 
       r.panel(0, 0, h: 10, v: 4).border.text(text).draw
