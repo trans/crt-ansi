@@ -1,0 +1,31 @@
+module CRT::Ansi
+end
+
+require "./ansi/version"
+require "./ansi/capabilities"
+require "./ansi/color"
+require "./ansi/hyperlink"
+require "./ansi/style"
+require "./ansi/graphemes"
+require "./ansi/display_width"
+require "./ansi/terminal_adapter"
+require "./ansi/context"
+require "./ansi/cell"
+require "./ansi/buffer"
+require "./ansi/renderer"
+
+module CRT::Ansi
+  @@context : Context = Context.new
+
+  def self.context : Context
+    @@context
+  end
+
+  def self.context=(ctx : Context) : Context
+    @@context = ctx
+  end
+
+  def self.configure!(env = ENV, io : IO = STDOUT) : Context
+    @@context = Context.detect(env, io)
+  end
+end
