@@ -17,7 +17,7 @@ CRT::Ansi::Screen.open(alt_screen: true, raw_mode: true, hide_cursor: true, mous
     screen.clear
 
     # Header
-    screen.panel(0, 0, h: screen.width, v: 1)
+    screen.panel(0, 0, w: screen.width, h: 1)
       .fill(Style.new(bg: Color.rgb(30, 40, 60)))
       .text(" Mouse Demo  |  Click to place dots  |  Press 'q' to quit",
             style: Style.new(fg: Color.rgb(255, 200, 80), bg: Color.rgb(30, 40, 60), bold: true))
@@ -34,10 +34,10 @@ CRT::Ansi::Screen.open(alt_screen: true, raw_mode: true, hide_cursor: true, mous
 
     # Event log panel (right side)
     log_x = screen.width - 32
-    log_h = 30
-    log_v = screen.height - 2
-    if log_x > 40 && log_v > 4
-      screen.panel(log_x, 1, h: log_h, v: log_v)
+    log_w = 30
+    log_h = screen.height - 2
+    if log_x > 40 && log_h > 4
+      screen.panel(log_x, 1, w: log_w, h: log_h)
         .border(Border::Rounded, style: Style.new(fg: Color.rgb(60, 80, 120)))
         .fill(Style.new(bg: Color.rgb(15, 20, 30)))
         .text("Event Log", style: Style.new(fg: Color.rgb(120, 160, 200), bold: true),
@@ -45,10 +45,10 @@ CRT::Ansi::Screen.open(alt_screen: true, raw_mode: true, hide_cursor: true, mous
         .draw
 
       # Show recent events
-      visible = log_v - 4
+      visible = log_h - 4
       start = {0, events.size - visible}.max
       events[start..].each_with_index do |ev, i|
-        screen.write(log_x + 2, 3 + i, ev[0, log_h - 4], event_style)
+        screen.write(log_x + 2, 3 + i, ev[0, log_w - 4], event_style)
       end
     end
 

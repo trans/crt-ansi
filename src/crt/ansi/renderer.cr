@@ -31,29 +31,29 @@ module CRT::Ansi
     end
 
     # Returns a Panel builder for fluid drawing within a region.
-    def panel(x : Int, y : Int, *, h : Int, v : Int) : Panel
-      Panel.new(self, x.to_i, y.to_i, h: h.to_i, v: v.to_i)
+    def panel(x : Int, y : Int, *, w : Int, h : Int) : Panel
+      Panel.new(self, x.to_i, y.to_i, w: w.to_i, h: h.to_i)
     end
 
     # Draw a box, horizontal line, or vertical line.
     #
-    # - `h > 0` and `v > 0`: bordered box (h wide, v tall, inclusive)
-    # - `h > 0` and `v == 0`: horizontal line of length h
-    # - `h == 0` and `v > 0`: vertical line of length v
+    # - `w > 0` and `h > 0`: bordered box (w wide, h tall, inclusive)
+    # - `w > 0` and `h == 0`: horizontal line of length w
+    # - `w == 0` and `h > 0`: vertical line of length h
     #
     # `fill:` fills the interior of a box with the given style.
     # `border:` selects the line-drawing character set.
-    def box(x : Int, y : Int, *, h : Int = 0, v : Int = 0,
+    def box(x : Int, y : Int, *, w : Int = 0, h : Int = 0,
             style : Style = @back_buffer.default_style,
             border : Border = Border::Single,
             fill : Style | Style::Char | Nil = nil) : Nil
       hz, vt, tl, tr, bl, br = border.chars
 
-      if h > 0 && v > 0
+      if w > 0 && h > 0
         # Box
         put(x, y, tl, style)
-        (h - 2).times { |i| put(x + i + 1, y, hz, style) }
-        put(x + h - 1, y, tr, style)
+        (w - 2).times { |i| put(x + i + 1, y, hz, style) }
+        put(x + w - 1, y, tr, style)
 
         fill_char, fill_style = case fill
                                 in Style    then {" ", fill}
@@ -61,24 +61,24 @@ module CRT::Ansi
                                 in Nil       then {nil, nil}
                                 end
 
-        (v - 2).times do |j|
+        (h - 2).times do |j|
           row = y + j + 1
           put(x, row, vt, style)
           if fill_char && fill_style
-            (h - 2).times { |i| put(x + i + 1, row, fill_char, fill_style) }
+            (w - 2).times { |i| put(x + i + 1, row, fill_char, fill_style) }
           end
-          put(x + h - 1, row, vt, style)
+          put(x + w - 1, row, vt, style)
         end
 
-        put(x, y + v - 1, bl, style)
-        (h - 2).times { |i| put(x + i + 1, y + v - 1, hz, style) }
-        put(x + h - 1, y + v - 1, br, style)
-      elsif h > 0
+        put(x, y + h - 1, bl, style)
+        (w - 2).times { |i| put(x + i + 1, y + h - 1, hz, style) }
+        put(x + w - 1, y + h - 1, br, style)
+      elsif w > 0
         # Horizontal line
-        h.times { |i| put(x + i, y, hz, style) }
-      elsif v > 0
+        w.times { |i| put(x + i, y, hz, style) }
+      elsif h > 0
         # Vertical line
-        v.times { |j| put(x, y + j, vt, style) }
+        h.times { |j| put(x, y + j, vt, style) }
       end
     end
 

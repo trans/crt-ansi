@@ -3,8 +3,8 @@ module CRT::Ansi
     @render : Renderer
     @x : Int32
     @y : Int32
+    @w : Int32
     @h : Int32
-    @v : Int32
 
     @border : Border? = nil
     @border_style : Style = Style.default
@@ -22,7 +22,7 @@ module CRT::Ansi
     @shadow : Bool = false
     @shadow_style : Style = Style.new(bg: Color.indexed(0))
 
-    def initialize(@render : Renderer, @x : Int32, @y : Int32, *, @h : Int32, @v : Int32)
+    def initialize(@render : Renderer, @x : Int32, @y : Int32, *, @w : Int32, @h : Int32)
     end
 
     def border(border : Border = Border::Single, style : Style = Style.default) : self
@@ -71,7 +71,7 @@ module CRT::Ansi
     private def draw_border : Nil
       b = @border
       return unless b
-      @render.box(@x, @y, h: @h, v: @v, border: b, style: @border_style)
+      @render.box(@x, @y, w: @w, h: @h, border: b, style: @border_style)
     end
 
     private def draw_fill : Nil
@@ -80,8 +80,8 @@ module CRT::Ansi
       inset = @border ? 1 : 0
       ix = @x + inset
       iy = @y + inset
-      iw = @h - inset * 2
-      ih = @v - inset * 2
+      iw = @w - inset * 2
+      ih = @h - inset * 2
       return if iw <= 0 || ih <= 0
 
       fill_char, fill_style = case f
@@ -105,8 +105,8 @@ module CRT::Ansi
       pad = @text_pad
       ix = @x + inset + pad
       iy = @y + inset
-      iw = @h - (inset + pad) * 2
-      ih = @v - inset * 2
+      iw = @w - (inset + pad) * 2
+      ih = @h - inset * 2
       return if iw <= 0 || ih <= 0
 
       # Convert to styled spans if plain string.
@@ -452,11 +452,11 @@ module CRT::Ansi
 
     private def draw_shadow : Nil
       # Shadow: 1 cell right and 1 cell below the box
-      (@v - 1).times do |j|
-        @render.put(@x + @h, @y + 1 + j, " ", @shadow_style)
+      (@h - 1).times do |j|
+        @render.put(@x + @w, @y + 1 + j, " ", @shadow_style)
       end
-      @h.times do |i|
-        @render.put(@x + 1 + i, @y + @v, " ", @shadow_style)
+      @w.times do |i|
+        @render.put(@x + 1 + i, @y + @h, " ", @shadow_style)
       end
     end
   end
