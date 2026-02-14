@@ -55,6 +55,16 @@ module CRT::Ansi
         return 1
       end
 
+      # VS16 (emoji presentation selector) promotes emoji-capable codepoints to width 2
+      if width < 2 && grapheme.includes?('\u{FE0F}')
+        grapheme.each_char do |char|
+          if in_table?(char.ord, TABLES["EMOJI"])
+            width = 2
+            break
+          end
+        end
+      end
+
       width
     end
 

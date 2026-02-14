@@ -88,7 +88,7 @@ def parse_emoji(body : String) : Array(RRange)
     parts = line.split(';', 2)
     next if parts.size < 2
 
-    prop = parts[1].strip.split.first
+    prop = parts[1].strip.split(/[\s#]/, 2).first
     next unless prop == "Extended_Pictographic"
 
     fields = parts[0].strip.split("..")

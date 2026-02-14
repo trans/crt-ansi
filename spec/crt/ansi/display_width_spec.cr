@@ -32,9 +32,16 @@ describe CRT::Ansi::DisplayWidth do
     CRT::Ansi::DisplayWidth.of("\u{1F44D}\u{1F3FC}").should eq(2)
   end
 
-  it "treats variation selector as zero-width" do
-    # VS16 is zero-width; heart alone is narrow, so width stays 1
-    CRT::Ansi::DisplayWidth.of("\u2764\uFE0F").should eq(1)
+  it "promotes emoji with VS16 to width 2" do
+    # Heart + VS16 (emoji presentation) → width 2
+    CRT::Ansi::DisplayWidth.of("\u2764\uFE0F").should eq(2)
+    # Information source + VS16
+    CRT::Ansi::DisplayWidth.of("\u2139\uFE0F").should eq(2)
+  end
+
+  it "does not promote non-emoji with VS15 (text presentation)" do
+    # Heart + VS15 stays width 1 (text presentation, not emoji)
+    CRT::Ansi::DisplayWidth.of("\u2764\uFE0E").should eq(1)
   end
 
   it "returns 1 for control characters" do
