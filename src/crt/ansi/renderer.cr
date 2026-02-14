@@ -96,6 +96,16 @@ module CRT::Ansi
       @active_style = Style.default
       @cursor_x = -1
       @cursor_y = -1
+      @requested_cursor_x = -1
+      @requested_cursor_y = -1
+    end
+
+    # Set where the visible cursor should be placed after the next present.
+    # Coordinates are 0-indexed buffer positions.
+    # Pass (-1, -1) to clear the request (cursor stays wherever rendering left it).
+    def cursor_to(x : Int, y : Int) : Nil
+      @requested_cursor_x = x.to_i
+      @requested_cursor_y = y.to_i
     end
 
     def resize(width : Int, height : Int) : Nil
@@ -134,6 +144,10 @@ module CRT::Ansi
           render_full(io)
         else
           render_diff(io)
+        end
+
+        if @requested_cursor_x >= 0 && @requested_cursor_y >= 0
+          move_cursor(io, @requested_cursor_x, @requested_cursor_y)
         end
       end
 

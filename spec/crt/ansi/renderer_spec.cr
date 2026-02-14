@@ -245,6 +245,61 @@ describe CRT::Ansi::Renderer do
     end
   end
 
+  describe "#cursor_to" do
+    it "moves cursor to the requested position after present" do
+      io = IO::Memory.new
+      renderer = CRT::Ansi::Renderer.new(io, 10, 5)
+      renderer.write(0, 0, "Hello")
+      renderer.cursor_to(3, 2)
+      renderer.present
+
+      # origin is 1,1 so buffer (3,2) → terminal (4,3)
+      output = io.to_s
+      output.should match(/\e\[3;4H\z/)
+    end
+
+    it "does not emit cursor move when no position requested" do
+      io = IO::Memory.new
+      renderer = CRT::Ansi::Renderer.new(io, 5, 1)
+      renderer.write(0, 0, "AB")
+      renderer.present
+
+      # Output should NOT end with a cursor-move after the content
+      output = io.to_s
+      output.should_not match(/\e\[\d+;\d+H\z/)
+    end
+
+    it "persists cursor position across presents" do
+      io = IO::Memory.new
+      renderer = CRT::Ansi::Renderer.new(io, 5, 3)
+      renderer.cursor_to(1, 1)
+
+      renderer.write(0, 0, "A")
+      renderer.present
+      first_size = io.to_s.bytesize
+
+      # Change something to trigger a diff render
+      renderer.write(0, 0, "B")
+      renderer.present
+
+      output = io.to_s.byte_slice(first_size, io.to_s.bytesize - first_size)
+      # Should end with cursor at (1,1) → terminal (2,2)
+      output.should match(/\e\[2;2H\z/)
+    end
+
+    it "clears cursor request with (-1, -1)" do
+      io = IO::Memory.new
+      renderer = CRT::Ansi::Renderer.new(io, 5, 1)
+      renderer.cursor_to(2, 0)
+      renderer.cursor_to(-1, -1)
+      renderer.write(0, 0, "AB")
+      renderer.present
+
+      output = io.to_s
+      output.should_not match(/\e\[\d+;\d+H\z/)
+    end
+  end
+
   describe "styled rendering" do
     it "emits SGR sequences for styled cells" do
       io = IO::Memory.new

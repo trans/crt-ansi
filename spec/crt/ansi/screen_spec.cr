@@ -157,6 +157,19 @@ describe CRT::Ansi::Screen do
     end
   end
 
+  describe "#cursor_to" do
+    it "positions the cursor after present" do
+      io = IO::Memory.new
+      screen = CRT::Ansi::Screen.new(io, alt_screen: false, raw_mode: false, hide_cursor: false)
+      screen.write(0, 0, "Hello")
+      screen.cursor_to(2, 0)
+      screen.present
+
+      # Buffer (2,0) → terminal (3,1)
+      io.to_s.should match(/\e\[1;3H\z/)
+    end
+  end
+
   describe "mouse support" do
     it "enables mouse tracking on start when mouse: true" do
       io = IO::Memory.new
