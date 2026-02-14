@@ -1,7 +1,7 @@
 require "../../spec_helper"
 
 private def renderer(w = 20, h = 10)
-  CRT::Ansi::Renderer.new(IO::Memory.new, w, h)
+  CRT::Ansi::Render.new(IO::Memory.new, w, h)
 end
 
 describe CRT::Ansi::Panel do

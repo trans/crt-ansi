@@ -1,5 +1,7 @@
 module CRT::Ansi
-  class Renderer
+  class Render
+    include Canvas
+
     protected getter front_buffer : Buffer
     protected getter back_buffer : Buffer
     getter origin_x : Int32
@@ -14,72 +16,24 @@ module CRT::Ansi
       @back_buffer.height
     end
 
-    def put(x : Int, y : Int, grapheme : String, style : Style = @back_buffer.default_style) : Nil
+    def default_style : Style
+      @back_buffer.default_style
+    end
+
+    def put(x : Int, y : Int, grapheme : String, style : Style = default_style) : Nil
       @back_buffer.put(x, y, grapheme, style)
     end
 
-    def write(x : Int, y : Int, text : String, style : Style = @back_buffer.default_style) : Int32
+    def write(x : Int, y : Int, text : String, style : Style = default_style) : Int32
       @back_buffer.write(x, y, text, style)
     end
 
-    def clear(style : Style = @back_buffer.default_style) : Nil
+    def clear(style : Style = default_style) : Nil
       @back_buffer.clear(style)
     end
 
     def cell(x : Int, y : Int) : Cell
       @back_buffer.cell(x, y)
-    end
-
-    # Returns a Panel builder for fluid drawing within a region.
-    def panel(x : Int, y : Int, *, w : Int, h : Int) : Panel
-      Panel.new(self, x.to_i, y.to_i, w: w.to_i, h: h.to_i)
-    end
-
-    # Draw a box, horizontal line, or vertical line.
-    #
-    # - `w > 0` and `h > 0`: bordered box (w wide, h tall, inclusive)
-    # - `w > 0` and `h == 0`: horizontal line of length w
-    # - `w == 0` and `h > 0`: vertical line of length h
-    #
-    # `fill:` fills the interior of a box with the given style.
-    # `border:` selects the line-drawing character set.
-    def box(x : Int, y : Int, *, w : Int = 0, h : Int = 0,
-            style : Style = @back_buffer.default_style,
-            border : Border = Border::Single,
-            fill : Style | Style::Char | Nil = nil) : Nil
-      hz, vt, tl, tr, bl, br = border.chars
-
-      if w > 0 && h > 0
-        # Box
-        put(x, y, tl, style)
-        (w - 2).times { |i| put(x + i + 1, y, hz, style) }
-        put(x + w - 1, y, tr, style)
-
-        fill_char, fill_style = case fill
-                                in Style    then {" ", fill}
-                                in Style::Char then {fill.char, fill.style}
-                                in Nil       then {nil, nil}
-                                end
-
-        (h - 2).times do |j|
-          row = y + j + 1
-          put(x, row, vt, style)
-          if fill_char && fill_style
-            (w - 2).times { |i| put(x + i + 1, row, fill_char, fill_style) }
-          end
-          put(x + w - 1, row, vt, style)
-        end
-
-        put(x, y + h - 1, bl, style)
-        (w - 2).times { |i| put(x + i + 1, y + h - 1, hz, style) }
-        put(x + w - 1, y + h - 1, br, style)
-      elsif w > 0
-        # Horizontal line
-        w.times { |i| put(x + i, y, hz, style) }
-      elsif h > 0
-        # Vertical line
-        h.times { |j| put(x, y + j, vt, style) }
-      end
     end
 
     def initialize(@io : IO, width : Int, height : Int, *, origin_x : Int = 1, origin_y : Int = 1, context : Context = CRT::Ansi.context)

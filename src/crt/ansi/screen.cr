@@ -17,7 +17,7 @@
 
 module CRT::Ansi
   class Screen
-    getter render : Renderer
+    getter render : Render
     getter io : IO
     getter? running : Bool
     getter? alt_screen : Bool
@@ -40,7 +40,7 @@ module CRT::Ansi
       CRT::Ansi.context = @context
 
       w, h = detect_size
-      @render = Renderer.new(@io, w, h, context: @context)
+      @render = Render.new(@io, w, h, context: @context)
       @running = false
       @alt_screen = false
       @raw_mode = false

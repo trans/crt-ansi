@@ -1,6 +1,6 @@
 module CRT::Ansi
   struct Panel
-    @render : Renderer
+    @render : Canvas
     @x : Int32
     @y : Int32
     @w : Int32
@@ -22,7 +22,7 @@ module CRT::Ansi
     @shadow : Bool = false
     @shadow_style : Style = Style.new(bg: Color.indexed(0))
 
-    def initialize(@render : Renderer, @x : Int32, @y : Int32, *, @w : Int32, @h : Int32)
+    def initialize(@render : Canvas, @x : Int32, @y : Int32, *, @w : Int32, @h : Int32)
     end
 
     def border(border : Border = Border::Single, style : Style = Style.default) : self

@@ -1,7 +1,7 @@
 require "../../spec_helper"
 
-private def renderer(w = 20, h = 10)
-  CRT::Ansi::Renderer.new(IO::Memory.new, w, h)
+private def render(w = 20, h = 10)
+  CRT::Ansi::Render.new(IO::Memory.new, w, h)
 end
 
 describe CRT::Ansi::Viewport do
@@ -30,14 +30,14 @@ describe CRT::Ansi::Viewport do
     end
   end
 
-  describe "#blit" do
-    it "copies visible window to renderer" do
+  describe "Canvas#blit" do
+    it "copies visible window from viewport to render" do
       vp = CRT::Ansi::Viewport.new(width: 20, height: 20)
       vp.write(0, 0, "ABCDE")
       vp.write(0, 1, "FGHIJ")
 
-      r = renderer(10, 5)
-      vp.blit(r, x: 2, y: 1, w: 5, h: 2)
+      r = render(10, 5)
+      r.blit(vp, x: 2, y: 1, w: 5, h: 2)
 
       r.cell(2, 1).grapheme.should eq("A")
       r.cell(6, 1).grapheme.should eq("E")
@@ -50,8 +50,8 @@ describe CRT::Ansi::Viewport do
       vp.write(0, 50, "Row50")
       vp.write(0, 51, "Row51")
 
-      r = renderer(10, 5)
-      vp.blit(r, x: 0, y: 0, w: 5, h: 2, scroll_y: 50)
+      r = render(10, 5)
+      r.blit(vp, x: 0, y: 0, w: 5, h: 2, scroll_y: 50)
 
       r.cell(0, 0).grapheme.should eq("R")
       r.cell(3, 0).grapheme.should eq("5")
@@ -64,8 +64,8 @@ describe CRT::Ansi::Viewport do
       vp = CRT::Ansi::Viewport.new(width: 50, height: 5)
       vp.write(0, 0, "ABCDEFGHIJ")
 
-      r = renderer(10, 5)
-      vp.blit(r, x: 0, y: 0, w: 5, h: 1, scroll_x: 3)
+      r = render(10, 5)
+      r.blit(vp, x: 0, y: 0, w: 5, h: 1, scroll_x: 3)
 
       r.cell(0, 0).grapheme.should eq("D")
       r.cell(4, 0).grapheme.should eq("H")
@@ -77,15 +77,11 @@ describe CRT::Ansi::Viewport do
       vp.write(0, 1, "World")
       vp.write(0, 2, "Yay!!")
 
-      # Request more rows than exist — should not crash
-      r = renderer(10, 10)
-      vp.blit(r, x: 0, y: 0, w: 8, h: 5, scroll_y: 1)
+      r = render(10, 10)
+      r.blit(vp, x: 0, y: 0, w: 8, h: 5, scroll_y: 1)
 
-      # Row 0 of renderer = viewport row 1
       r.cell(0, 0).grapheme.should eq("W")
-      # Row 1 of renderer = viewport row 2
       r.cell(0, 1).grapheme.should eq("Y")
-      # Row 2 would be viewport row 3 — out of bounds, should be blank
       r.cell(0, 2).blank?.should be_true
     end
 
@@ -93,12 +89,10 @@ describe CRT::Ansi::Viewport do
       vp = CRT::Ansi::Viewport.new(width: 10, height: 5)
       vp.write(0, 0, "Hello")
 
-      r = renderer(10, 5)
-      vp.blit(r, x: 0, y: 0, w: 5, h: 3, scroll_y: -1)
+      r = render(10, 5)
+      r.blit(vp, x: 0, y: 0, w: 5, h: 3, scroll_y: -1)
 
-      # Row 0: src_y = -1, skipped
       r.cell(0, 0).blank?.should be_true
-      # Row 1: src_y = 0, "Hello"
       r.cell(0, 1).grapheme.should eq("H")
     end
 
@@ -107,11 +101,32 @@ describe CRT::Ansi::Viewport do
       vp = CRT::Ansi::Viewport.new(width: 10, height: 5)
       vp.write(0, 0, "Hi", bold)
 
-      r = renderer(10, 5)
-      vp.blit(r, x: 0, y: 0, w: 5, h: 1)
+      r = render(10, 5)
+      r.blit(vp, x: 0, y: 0, w: 5, h: 1)
 
       r.cell(0, 0).style.should eq(bold)
       r.cell(1, 0).style.should eq(bold)
+    end
+  end
+
+  describe "Canvas methods" do
+    it "supports box drawing" do
+      vp = CRT::Ansi::Viewport.new(width: 10, height: 5)
+      vp.box(0, 0, w: 5, h: 3)
+
+      vp.cell(0, 0).grapheme.should eq("┌")
+      vp.cell(4, 0).grapheme.should eq("┐")
+      vp.cell(0, 2).grapheme.should eq("└")
+      vp.cell(4, 2).grapheme.should eq("┘")
+    end
+
+    it "supports panel drawing" do
+      vp = CRT::Ansi::Viewport.new(width: 20, height: 10)
+      vp.panel(0, 0, w: 10, h: 3).border.text("Hi").draw
+
+      vp.cell(0, 0).grapheme.should eq("┌")
+      vp.cell(1, 1).grapheme.should eq("H")
+      vp.cell(2, 1).grapheme.should eq("i")
     end
   end
 
@@ -123,7 +138,6 @@ describe CRT::Ansi::Viewport do
 
       vp.width.should eq(10)
       vp.height.should eq(8)
-      # Old content is gone
       vp.cell(0, 0).blank?.should be_true
     end
   end

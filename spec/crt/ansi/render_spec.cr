@@ -1,9 +1,9 @@
 require "../../spec_helper"
 
-describe CRT::Ansi::Renderer do
+describe CRT::Ansi::Render do
   it "renders only diffs after initial frame" do
     io = IO::Memory.new
-    renderer = CRT::Ansi::Renderer.new(io, 4, 1)
+    renderer = CRT::Ansi::Render.new(io, 4, 1)
 
     renderer.write(0, 0, "AB")
     renderer.present
@@ -25,7 +25,7 @@ describe CRT::Ansi::Renderer do
     ctx = CRT::Ansi::Context.new(capabilities: caps)
 
     io = IO::Memory.new
-    renderer = CRT::Ansi::Renderer.new(io, 1, 1, context: ctx)
+    renderer = CRT::Ansi::Render.new(io, 1, 1, context: ctx)
 
     linked = CRT::Ansi::Style.default.with_hyperlink("https://example.com")
     renderer.put(0, 0, "X", linked)
@@ -45,7 +45,7 @@ describe CRT::Ansi::Renderer do
     ctx = CRT::Ansi::Context.new(capabilities: caps)
 
     io = IO::Memory.new
-    renderer = CRT::Ansi::Renderer.new(io, 1, 1, context: ctx)
+    renderer = CRT::Ansi::Render.new(io, 1, 1, context: ctx)
     linked = CRT::Ansi::Style.default.with_hyperlink("https://example.com")
 
     renderer.put(0, 0, "X", linked)
@@ -56,7 +56,7 @@ describe CRT::Ansi::Renderer do
 
   it "returns output bytesize from present" do
     io = IO::Memory.new
-    renderer = CRT::Ansi::Renderer.new(io, 3, 1)
+    renderer = CRT::Ansi::Render.new(io, 3, 1)
     renderer.write(0, 0, "Hi")
     bytes = renderer.present
     bytes.should be > 0
@@ -64,7 +64,7 @@ describe CRT::Ansi::Renderer do
 
   it "returns 0 when nothing changed" do
     io = IO::Memory.new
-    renderer = CRT::Ansi::Renderer.new(io, 3, 1)
+    renderer = CRT::Ansi::Render.new(io, 3, 1)
     renderer.present  # first frame (blank → blank)
     bytes = renderer.present  # second frame, no changes
     bytes.should eq(0)
@@ -73,7 +73,7 @@ describe CRT::Ansi::Renderer do
   describe "#width / #height" do
     it "exposes buffer dimensions" do
       io = IO::Memory.new
-      renderer = CRT::Ansi::Renderer.new(io, 40, 10)
+      renderer = CRT::Ansi::Render.new(io, 40, 10)
       renderer.width.should eq(40)
       renderer.height.should eq(10)
     end
@@ -82,7 +82,7 @@ describe CRT::Ansi::Renderer do
   describe "drawing delegates" do
     it "delegates put/write/clear/cell to the back buffer" do
       io = IO::Memory.new
-      renderer = CRT::Ansi::Renderer.new(io, 5, 1)
+      renderer = CRT::Ansi::Render.new(io, 5, 1)
 
       renderer.write(0, 0, "Hi")
       renderer.cell(0, 0).grapheme.should eq("H")
@@ -99,7 +99,7 @@ describe CRT::Ansi::Renderer do
   describe "#resize" do
     it "creates new buffers and triggers full redraw" do
       io = IO::Memory.new
-      renderer = CRT::Ansi::Renderer.new(io, 3, 1)
+      renderer = CRT::Ansi::Render.new(io, 3, 1)
       renderer.write(0, 0, "AB")
       renderer.present
 
@@ -116,7 +116,7 @@ describe CRT::Ansi::Renderer do
   describe "#force_full_redraw!" do
     it "causes next present to render all cells" do
       io = IO::Memory.new
-      renderer = CRT::Ansi::Renderer.new(io, 3, 1)
+      renderer = CRT::Ansi::Render.new(io, 3, 1)
       renderer.write(0, 0, "ABC")
       renderer.present
       first_size = io.to_s.bytesize
@@ -132,7 +132,7 @@ describe CRT::Ansi::Renderer do
   describe "#reset_terminal_state!" do
     it "emits SGR reset and flushes" do
       io = IO::Memory.new
-      renderer = CRT::Ansi::Renderer.new(io, 3, 1)
+      renderer = CRT::Ansi::Render.new(io, 3, 1)
       renderer.reset_terminal_state!
       io.to_s.should contain("\e[0m")
     end
@@ -141,7 +141,7 @@ describe CRT::Ansi::Renderer do
   describe "origin offset" do
     it "applies origin_x and origin_y to cursor positioning" do
       io = IO::Memory.new
-      renderer = CRT::Ansi::Renderer.new(io, 3, 1, origin_x: 5, origin_y: 10)
+      renderer = CRT::Ansi::Render.new(io, 3, 1, origin_x: 5, origin_y: 10)
       renderer.put(0, 0, "A")
       renderer.present
 
@@ -150,15 +150,15 @@ describe CRT::Ansi::Renderer do
 
     it "rejects origin less than 1" do
       io = IO::Memory.new
-      expect_raises(ArgumentError) { CRT::Ansi::Renderer.new(io, 3, 1, origin_x: 0) }
-      expect_raises(ArgumentError) { CRT::Ansi::Renderer.new(io, 3, 1, origin_y: 0) }
+      expect_raises(ArgumentError) { CRT::Ansi::Render.new(io, 3, 1, origin_x: 0) }
+      expect_raises(ArgumentError) { CRT::Ansi::Render.new(io, 3, 1, origin_y: 0) }
     end
   end
 
   describe "#box" do
     it "draws a box with corners and edges" do
       io = IO::Memory.new
-      renderer = CRT::Ansi::Renderer.new(io, 5, 3)
+      renderer = CRT::Ansi::Render.new(io, 5, 3)
       renderer.box(0, 0, w: 5, h: 3)
 
       renderer.cell(0, 0).grapheme.should eq("┌")
@@ -171,7 +171,7 @@ describe CRT::Ansi::Renderer do
 
     it "draws a horizontal line when h is 0" do
       io = IO::Memory.new
-      renderer = CRT::Ansi::Renderer.new(io, 5, 1)
+      renderer = CRT::Ansi::Render.new(io, 5, 1)
       renderer.box(0, 0, w: 5)
 
       5.times { |i| renderer.cell(i, 0).grapheme.should eq("─") }
@@ -179,7 +179,7 @@ describe CRT::Ansi::Renderer do
 
     it "draws a vertical line when w is 0" do
       io = IO::Memory.new
-      renderer = CRT::Ansi::Renderer.new(io, 1, 5)
+      renderer = CRT::Ansi::Render.new(io, 1, 5)
       renderer.box(0, 0, h: 5)
 
       5.times { |j| renderer.cell(0, j).grapheme.should eq("│") }
@@ -187,7 +187,7 @@ describe CRT::Ansi::Renderer do
 
     it "fills the interior with spaces when a Style is given" do
       io = IO::Memory.new
-      renderer = CRT::Ansi::Renderer.new(io, 5, 3)
+      renderer = CRT::Ansi::Render.new(io, 5, 3)
       fill_style = CRT::Ansi::Style.new(bg: CRT::Ansi::Color.indexed(1))
       renderer.box(0, 0, w: 5, h: 3, fill: fill_style)
 
@@ -199,7 +199,7 @@ describe CRT::Ansi::Renderer do
 
     it "fills the interior with a custom character" do
       io = IO::Memory.new
-      renderer = CRT::Ansi::Renderer.new(io, 5, 3)
+      renderer = CRT::Ansi::Render.new(io, 5, 3)
       renderer.box(0, 0, w: 5, h: 3, fill: CRT::Ansi::Style::Char.new('·'))
 
       renderer.cell(1, 1).grapheme.should eq("·")
@@ -209,7 +209,7 @@ describe CRT::Ansi::Renderer do
 
     it "leaves interior untouched without fill" do
       io = IO::Memory.new
-      renderer = CRT::Ansi::Renderer.new(io, 5, 3)
+      renderer = CRT::Ansi::Render.new(io, 5, 3)
       renderer.box(0, 0, w: 5, h: 3)
 
       # Interior should still be blank (default)
@@ -218,7 +218,7 @@ describe CRT::Ansi::Renderer do
 
     it "supports different border styles" do
       io = IO::Memory.new
-      renderer = CRT::Ansi::Renderer.new(io, 4, 3)
+      renderer = CRT::Ansi::Render.new(io, 4, 3)
       renderer.box(0, 0, w: 4, h: 3, border: CRT::Ansi::Border::Double)
 
       renderer.cell(0, 0).grapheme.should eq("╔")
@@ -228,7 +228,7 @@ describe CRT::Ansi::Renderer do
 
     it "supports rounded corners" do
       io = IO::Memory.new
-      renderer = CRT::Ansi::Renderer.new(io, 4, 3)
+      renderer = CRT::Ansi::Render.new(io, 4, 3)
       renderer.box(0, 0, w: 4, h: 3, border: CRT::Ansi::Border::Rounded)
 
       renderer.cell(0, 0).grapheme.should eq("╭")
@@ -239,7 +239,7 @@ describe CRT::Ansi::Renderer do
 
     it "does nothing when both w and h are 0" do
       io = IO::Memory.new
-      renderer = CRT::Ansi::Renderer.new(io, 3, 3)
+      renderer = CRT::Ansi::Render.new(io, 3, 3)
       renderer.box(0, 0, w: 0, h: 0)
       renderer.cell(0, 0).blank?.should be_true
     end
@@ -248,7 +248,7 @@ describe CRT::Ansi::Renderer do
   describe "#cursor_to" do
     it "moves cursor to the requested position after present" do
       io = IO::Memory.new
-      renderer = CRT::Ansi::Renderer.new(io, 10, 5)
+      renderer = CRT::Ansi::Render.new(io, 10, 5)
       renderer.write(0, 0, "Hello")
       renderer.cursor_to(3, 2)
       renderer.present
@@ -260,7 +260,7 @@ describe CRT::Ansi::Renderer do
 
     it "does not emit cursor move when no position requested" do
       io = IO::Memory.new
-      renderer = CRT::Ansi::Renderer.new(io, 5, 1)
+      renderer = CRT::Ansi::Render.new(io, 5, 1)
       renderer.write(0, 0, "AB")
       renderer.present
 
@@ -271,7 +271,7 @@ describe CRT::Ansi::Renderer do
 
     it "persists cursor position across presents" do
       io = IO::Memory.new
-      renderer = CRT::Ansi::Renderer.new(io, 5, 3)
+      renderer = CRT::Ansi::Render.new(io, 5, 3)
       renderer.cursor_to(1, 1)
 
       renderer.write(0, 0, "A")
@@ -289,7 +289,7 @@ describe CRT::Ansi::Renderer do
 
     it "clears cursor request with (-1, -1)" do
       io = IO::Memory.new
-      renderer = CRT::Ansi::Renderer.new(io, 5, 1)
+      renderer = CRT::Ansi::Render.new(io, 5, 1)
       renderer.cursor_to(2, 0)
       renderer.cursor_to(-1, -1)
       renderer.write(0, 0, "AB")
@@ -303,7 +303,8 @@ describe CRT::Ansi::Renderer do
   describe "styled rendering" do
     it "emits SGR sequences for styled cells" do
       io = IO::Memory.new
-      renderer = CRT::Ansi::Renderer.new(io, 3, 1)
+      ctx = CRT::Ansi::Context.new(capabilities: CRT::Ansi::Capabilities.new(bold: true))
+      renderer = CRT::Ansi::Render.new(io, 3, 1, context: ctx)
       style = CRT::Ansi::Style.new(bold: true)
       renderer.write(0, 0, "Hi", style)
       renderer.present
