@@ -13,7 +13,14 @@ module CRT::Ansi
 
     getter hyperlink : Hyperlink?
 
-    DEFAULT = Style.new
+    DEFAULT      = Style.new
+    BOLD         = Style.new(bold: true)
+    DIM          = Style.new(dim: true)
+    ITALIC       = Style.new(italic: true)
+    UNDERLINE    = Style.new(underline: true)
+    BLINK        = Style.new(blink: true)
+    INVERSE      = Style.new(inverse: true)
+    STRIKE       = Style.new(strikethrough: true)
 
     def initialize(
       @fg : Color = Color.default,
