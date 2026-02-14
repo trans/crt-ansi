@@ -212,6 +212,51 @@ describe CRT::Ansi::Screen do
     end
   end
 
+  describe "#run" do
+    it "loops until stop is called" do
+      io = IO::Memory.new
+      screen = CRT::Ansi::Screen.new(io, alt_screen: false, raw_mode: false, hide_cursor: false)
+      screen.start
+
+      ticks = 0
+      screen.run(fps: 60) do
+        ticks += 1
+        screen.stop if ticks >= 3
+      end
+
+      ticks.should eq(3)
+    end
+
+    it "calls present each frame" do
+      io = IO::Memory.new
+      screen = CRT::Ansi::Screen.new(io, alt_screen: false, raw_mode: false, hide_cursor: false)
+      screen.start
+
+      screen.write(0, 0, "Hi")
+      tick = 0
+      screen.run(fps: 60) do
+        tick += 1
+        screen.stop if tick >= 1
+      end
+
+      io.to_s.should contain("Hi")
+    end
+
+    it "exits on break" do
+      io = IO::Memory.new
+      screen = CRT::Ansi::Screen.new(io, alt_screen: false, raw_mode: false, hide_cursor: false)
+      screen.start
+
+      ticks = 0
+      screen.run(fps: 60) do
+        ticks += 1
+        break if ticks >= 2
+      end
+
+      ticks.should eq(2)
+    end
+  end
+
   describe "#on_resize" do
     it "stores a resize handler" do
       io = IO::Memory.new

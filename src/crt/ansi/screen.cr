@@ -141,6 +141,18 @@ module CRT::Ansi
       end
     end
 
+    # Run a frame-rate-limited loop. Yields once per frame, then
+    # calls present. Use poll_event inside the block for input.
+    # Break from the block or call stop to exit.
+    def run(*, fps : Int32 = 30, &) : Nil
+      interval = Time::Span.new(nanoseconds: (1_000_000_000 // fps).to_i64)
+      while @running
+        yield
+        present
+        sleep interval
+      end
+    end
+
     # Delegate drawing methods to the renderer.
     delegate :put, :write, :clear, :cell, :box, :panel, :blit, :cursor_to, to: @render
 
