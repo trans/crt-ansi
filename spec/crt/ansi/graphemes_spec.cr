@@ -68,4 +68,36 @@ describe CRT::Ansi::Graphemes do
     result = clusters("Hi\u{1F44B}!")
     result.should eq(["H", "i", "\u{1F44B}", "!"])
   end
+
+  describe ".count" do
+    it "counts ASCII graphemes" do
+      CRT::Ansi::Graphemes.count("Hello").should eq(5)
+    end
+
+    it "counts multi-byte graphemes" do
+      CRT::Ansi::Graphemes.count("e\u0301").should eq(1)
+    end
+
+    it "returns 0 for empty string" do
+      CRT::Ansi::Graphemes.count("").should eq(0)
+    end
+
+    it "counts mixed ASCII and emoji" do
+      CRT::Ansi::Graphemes.count("Hi\u{1F44B}!").should eq(4)
+    end
+  end
+
+  describe ".to_a" do
+    it "splits ASCII into array" do
+      CRT::Ansi::Graphemes.to_a("abc").should eq(["a", "b", "c"])
+    end
+
+    it "keeps grapheme clusters together" do
+      CRT::Ansi::Graphemes.to_a("e\u0301x").should eq(["e\u0301", "x"])
+    end
+
+    it "returns empty array for empty string" do
+      CRT::Ansi::Graphemes.to_a("").should eq([] of String)
+    end
+  end
 end

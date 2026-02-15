@@ -35,6 +35,33 @@ module CRT::Ansi
       tables
     end
 
+    # Returns the display width of the first `grapheme_index` graphemes.
+    def width_to(text : String, grapheme_index : Int32) : Int32
+      col = 0
+      i = 0
+      Graphemes.each(text) do |g|
+        break if i >= grapheme_index
+        col += of(g)
+        i += 1
+      end
+      col
+    end
+
+    # Returns the grapheme index at or before the given absolute display column.
+    def grapheme_at_column(text : String, column : Int32) : Int32
+      col = 0
+      gi = 0
+      Graphemes.each(text) do |g|
+        gw = of(g)
+        if col + gw > column
+          return gi
+        end
+        col += gw
+        gi += 1
+      end
+      gi
+    end
+
     # Returns the display width of a string by summing grapheme cluster widths.
     def width(text : String) : Int32
       total = 0

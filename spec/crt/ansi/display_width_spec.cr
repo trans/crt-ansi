@@ -60,4 +60,44 @@ describe CRT::Ansi::DisplayWidth do
     # Just before DOUBLEWIDTH range
     CRT::Ansi::DisplayWidth.of("\u{10FF}").should eq(1)
   end
+
+  describe ".width_to" do
+    it "returns 0 for index 0" do
+      CRT::Ansi::DisplayWidth.width_to("Hello", 0).should eq(0)
+    end
+
+    it "returns width of first N graphemes" do
+      CRT::Ansi::DisplayWidth.width_to("Hello", 3).should eq(3)
+    end
+
+    it "handles wide characters" do
+      # "a中b" — a(1) + 中(2) + b(1)
+      CRT::Ansi::DisplayWidth.width_to("a\u{4E2D}b", 2).should eq(3)
+    end
+
+    it "returns full width when index exceeds length" do
+      CRT::Ansi::DisplayWidth.width_to("Hi", 10).should eq(2)
+    end
+  end
+
+  describe ".grapheme_at_column" do
+    it "returns 0 for column 0" do
+      CRT::Ansi::DisplayWidth.grapheme_at_column("Hello", 0).should eq(0)
+    end
+
+    it "maps column to grapheme index for ASCII" do
+      CRT::Ansi::DisplayWidth.grapheme_at_column("Hello", 3).should eq(3)
+    end
+
+    it "maps column past wide character" do
+      # "a中b" — col 0=a, col 1-2=中, col 3=b
+      CRT::Ansi::DisplayWidth.grapheme_at_column("a\u{4E2D}b", 1).should eq(1)
+      CRT::Ansi::DisplayWidth.grapheme_at_column("a\u{4E2D}b", 2).should eq(1)
+      CRT::Ansi::DisplayWidth.grapheme_at_column("a\u{4E2D}b", 3).should eq(2)
+    end
+
+    it "returns grapheme count when column is past end" do
+      CRT::Ansi::DisplayWidth.grapheme_at_column("Hi", 10).should eq(2)
+    end
+  end
 end

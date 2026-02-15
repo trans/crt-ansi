@@ -4,6 +4,18 @@ module CRT::Ansi
 
     ZERO_WIDTH_JOINER = 0x200D
 
+    def count(text : String) : Int32
+      total = 0
+      each(text) { |_| total += 1 }
+      total
+    end
+
+    def to_a(text : String) : Array(String)
+      result = [] of String
+      each(text) { |g| result << g }
+      result
+    end
+
     def each(text : String, &) : Nil
       return if text.empty?
 
