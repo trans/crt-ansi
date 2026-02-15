@@ -62,6 +62,11 @@ module CRT::Ansi
       gi
     end
 
+    # Returns the maximum display width across an array of strings.
+    def max_width(texts : Indexable(String)) : Int32
+      texts.max_of { |t| width(t) }
+    end
+
     # Returns the display width of a string by summing grapheme cluster widths.
     def width(text : String) : Int32
       total = 0

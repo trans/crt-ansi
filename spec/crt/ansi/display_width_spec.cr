@@ -61,6 +61,16 @@ describe CRT::Ansi::DisplayWidth do
     CRT::Ansi::DisplayWidth.of("\u{10FF}").should eq(1)
   end
 
+  describe ".max_width" do
+    it "returns the widest string" do
+      CRT::Ansi::DisplayWidth.max_width(["Hi", "Hello", "Hey"]).should eq(5)
+    end
+
+    it "handles wide characters" do
+      CRT::Ansi::DisplayWidth.max_width(["a", "\u{4E2D}"]).should eq(2)
+    end
+  end
+
   describe ".width_to" do
     it "returns 0 for index 0" do
       CRT::Ansi::DisplayWidth.width_to("Hello", 0).should eq(0)
