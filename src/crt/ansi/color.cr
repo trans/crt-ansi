@@ -47,6 +47,18 @@ module CRT::Ansi
       @mode.default?
     end
 
+    # Linear interpolation between two colors. Returns an RGB color at
+    # position `t` along the line from `a` to `b` (0.0 = a, 1.0 = b).
+    # Default-mode colors are treated as black (0, 0, 0).
+    def self.lerp(a : Color, b : Color, t : Float64) : Color
+      ar, ag, ab = a.default? ? {0, 0, 0} : {a.red, a.green, a.blue}
+      br, bg, bb = b.default? ? {0, 0, 0} : {b.red, b.green, b.blue}
+      rgb(
+        (ar + (br - ar) * t).round.to_i.clamp(0, 255),
+        (ag + (bg - ag) * t).round.to_i.clamp(0, 255),
+        (ab + (bb - ab) * t).round.to_i.clamp(0, 255))
+    end
+
     def append_fg_sgr(io : IO, capabilities : Capabilities = CRT::Ansi.context.capabilities) : Nil
       case capabilities.color_support
       in .none?

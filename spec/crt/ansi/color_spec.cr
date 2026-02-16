@@ -98,6 +98,43 @@ describe CRT::Ansi::Color do
     end
   end
 
+  describe ".lerp" do
+    it "returns a at t=0" do
+      a = CRT::Ansi::Color.rgb(0, 0, 0)
+      b = CRT::Ansi::Color.rgb(255, 255, 255)
+      CRT::Ansi::Color.lerp(a, b, 0.0).should eq(a)
+    end
+
+    it "returns b at t=1" do
+      a = CRT::Ansi::Color.rgb(0, 0, 0)
+      b = CRT::Ansi::Color.rgb(255, 255, 255)
+      CRT::Ansi::Color.lerp(a, b, 1.0).should eq(b)
+    end
+
+    it "returns midpoint at t=0.5" do
+      a = CRT::Ansi::Color.rgb(0, 0, 0)
+      b = CRT::Ansi::Color.rgb(200, 100, 50)
+      result = CRT::Ansi::Color.lerp(a, b, 0.5)
+      result.red.should eq(100)
+      result.green.should eq(50)
+      result.blue.should eq(25)
+    end
+
+    it "treats default colors as black" do
+      d = CRT::Ansi::Color.default
+      b = CRT::Ansi::Color.rgb(100, 100, 100)
+      result = CRT::Ansi::Color.lerp(d, b, 0.5)
+      result.red.should eq(50)
+    end
+
+    it "clamps to 0..255" do
+      a = CRT::Ansi::Color.rgb(200, 200, 200)
+      b = CRT::Ansi::Color.rgb(255, 255, 255)
+      result = CRT::Ansi::Color.lerp(a, b, 2.0)
+      result.red.should eq(255)
+    end
+  end
+
   describe "RGB downsampling" do
     caps_256 = CRT::Ansi::Capabilities.new(color_support: CRT::Ansi::Capabilities::ColorSupport::ANSI256)
     caps_16 = CRT::Ansi::Capabilities.new(color_support: CRT::Ansi::Capabilities::ColorSupport::ANSI16)
