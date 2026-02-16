@@ -22,6 +22,9 @@ module CRT::Ansi
     @shadow : Bool = false
     @shadow_style : Style = Style.new(bg: Color.indexed(0))
 
+    @bevel : Bool = false
+    @bevel_style : Style = Style.new(fg: Color.rgb(70, 70, 85))
+
     def initialize(@render : Canvas, @x : Int32, @y : Int32, *, @w : Int32, @h : Int32)
     end
 
@@ -59,8 +62,15 @@ module CRT::Ansi
       self
     end
 
+    def bevel(style : Style = Style.new(fg: Color.rgb(70, 70, 85))) : self
+      @bevel = true
+      @bevel_style = style
+      self
+    end
+
     def draw : Nil
       draw_shadow if @shadow
+      draw_bevel if @bevel
       draw_fill if @fill
       draw_border if @border
       draw_text if @text_content
@@ -457,6 +467,17 @@ module CRT::Ansi
       end
       @w.times do |i|
         @render.put(@x + 1 + i, @y + @h, " ", @shadow_style)
+      end
+    end
+
+    private def draw_bevel : Nil
+      # Bevel: thin highlight on right edge and bottom edge, offset by 1
+      s = @bevel_style
+      (@h - 1).times do |j|
+        @render.put(@x + @w, @y + 1 + j, "▎", s)
+      end
+      @w.times do |i|
+        @render.put(@x + i, @y + @h, "▔", s)
       end
     end
   end
